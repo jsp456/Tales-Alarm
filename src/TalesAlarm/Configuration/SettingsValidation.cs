@@ -75,6 +75,7 @@ public static class SettingsValidator
     private static bool IsManagedFileName(string? fileName) =>
         fileName is not null
         && !string.IsNullOrWhiteSpace(fileName)
+        && fileName is not "." and not ".."
         && !Path.IsPathRooted(fileName)
         && !fileName.Contains('\\')
         && !fileName.Contains('/');

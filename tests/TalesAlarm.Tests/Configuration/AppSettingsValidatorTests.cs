@@ -188,6 +188,8 @@ public sealed class AppSettingsValidatorTests
     [InlineData("C:\\sounds\\alarm.wav")]
     [InlineData("..\\alarm.wav")]
     [InlineData("sounds\\alarm.wav")]
+    [InlineData(".")]
+    [InlineData("..")]
     public void Validate_RejectsCustomSoundPathInsteadOfFileName(string customFileName)
     {
         var defaults = AppSettings.CreateDefault();
