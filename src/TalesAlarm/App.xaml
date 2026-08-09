@@ -3,8 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:TalesAlarm"
              xmlns:controls="clr-namespace:TalesAlarm.Views.Controls"
-             xmlns:converters="clr-namespace:TalesAlarm.Views.Converters"
-             StartupUri="MainWindow.xaml">
+             xmlns:converters="clr-namespace:TalesAlarm.Views.Converters">
     <Application.Resources>
         <converters:HotkeyGestureConverter x:Key="HotkeyGestureConverter" />
 
