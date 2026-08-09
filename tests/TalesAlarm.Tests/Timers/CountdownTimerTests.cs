@@ -50,6 +50,48 @@ public sealed class CountdownTimerTests
             timer.Remaining);
     }
 
+    [Fact]
+    public void HandleActivation_PauseResumeFromPausedPreservesRemainingAndRestartsElapsedTime()
+    {
+        var time = new ManualTimeProvider();
+        var timer = new CountdownTimer(time, TimeSpan.FromSeconds(20));
+        timer.Start();
+        time.Advance(TimeSpan.FromSeconds(5));
+        timer.Pause();
+
+        time.Advance(TimeSpan.FromSeconds(7));
+        timer.HandleActivation(ReactivationPolicy.PauseResume);
+
+        Assert.Equal(TimerState.Running, timer.State);
+        Assert.Equal(TimeSpan.FromSeconds(15), timer.Remaining);
+
+        time.Advance(TimeSpan.FromSeconds(4));
+        timer.Tick();
+
+        Assert.Equal(TimeSpan.FromSeconds(11), timer.Remaining);
+    }
+
+    [Fact]
+    public void Resume_PreservesFrozenRemainingAndRestartsElapsedTime()
+    {
+        var time = new ManualTimeProvider();
+        var timer = new CountdownTimer(time, TimeSpan.FromSeconds(20));
+        timer.Start();
+        time.Advance(TimeSpan.FromSeconds(5));
+        timer.Pause();
+
+        time.Advance(TimeSpan.FromSeconds(7));
+        timer.Resume();
+
+        Assert.Equal(TimerState.Running, timer.State);
+        Assert.Equal(TimeSpan.FromSeconds(15), timer.Remaining);
+
+        time.Advance(TimeSpan.FromSeconds(4));
+        timer.Tick();
+
+        Assert.Equal(TimeSpan.FromSeconds(11), timer.Remaining);
+    }
+
     [Theory]
     [InlineData(TimerState.Running)]
     [InlineData(TimerState.Paused)]
