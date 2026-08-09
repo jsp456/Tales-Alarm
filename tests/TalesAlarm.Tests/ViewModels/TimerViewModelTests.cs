@@ -3,6 +3,8 @@ using TalesAlarm.Configuration;
 using TalesAlarm.Hotkeys;
 using TalesAlarm.Tests.Helpers;
 using TalesAlarm.Timers;
+using TalesAlarm.Views.Controls;
+using TalesAlarm.Views.Converters;
 using TalesAlarm.ViewModels;
 
 namespace TalesAlarm.Tests.ViewModels;
@@ -117,6 +119,68 @@ public sealed class TimerViewModelTests
         viewModel.CreateDraftSettings();
 
         Assert.NotNull(viewModel.ValidationMessage);
+    }
+
+    // Break caught: modifier ordering and numeric key labels make saved gestures unreadable.
+    [Fact]
+    public void HotkeyGestureConverter_FormatsModifiersAndKeysForDisplay()
+    {
+        Assert.Equal(
+            "F4",
+            HotkeyGestureConverter.Format(new(Key.F4, HotkeyModifiers.None)));
+        Assert.Equal(
+            "Ctrl + Alt + 1",
+            HotkeyGestureConverter.Format(new(
+                Key.D1,
+                HotkeyModifiers.Control | HotkeyModifiers.Alt)));
+    }
+
+    // Break caught: three-digit hours are truncated or wrapped at 24 hours.
+    [Fact]
+    public void TimerDisplayConverter_FormatsMaximumDurationWithoutWrappingDays()
+    {
+        Assert.Equal(
+            "999:59:59",
+            TimerDisplayConverter.Format(TimeSpan.FromSeconds(3_599_999)));
+    }
+
+    // Break caught: Alt/system key input stores Key.System instead of the real key.
+    [Fact]
+    public void HotkeyCapture_CreateGestureResolvesSystemKeyAndModifiers()
+    {
+        var gesture = HotkeyCaptureBox.CreateGesture(
+            Key.System,
+            Key.F9,
+            ModifierKeys.Control | ModifierKeys.Alt);
+
+        Assert.Equal(
+            new HotkeyGesture(Key.F9, HotkeyModifiers.Control | HotkeyModifiers.Alt),
+            gesture);
+    }
+
+    // Break caught: modifier-only input becomes a global hotkey with no actionable key.
+    [Fact]
+    public void HotkeyCapture_ModifierOnlyInputReturnsNull()
+    {
+        Assert.Null(HotkeyCaptureBox.CreateGesture(
+            Key.LeftCtrl,
+            Key.None,
+            ModifierKeys.Control));
+    }
+
+    // Break caught: Escape clears the previously saved gesture instead of cancelling capture.
+    [Fact]
+    public void HotkeyCapture_EscapeLeavesPreviousGestureUnchanged()
+    {
+        var previous = new HotkeyGesture(Key.F4, HotkeyModifiers.None);
+        var candidate = HotkeyCaptureBox.CreateGesture(
+            Key.Escape,
+            Key.None,
+            ModifierKeys.None);
+
+        var actual = candidate ?? previous;
+
+        Assert.Equal(previous, actual);
     }
 
     private static TimerViewModel CreateViewModel(out ManualTimeProvider time)
