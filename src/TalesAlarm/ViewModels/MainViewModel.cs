@@ -20,6 +20,7 @@ public sealed class MainViewModel : ObservableObject
     private string? noticeMessage;
     private bool completionPending;
     private bool initialized;
+    private bool isCompactView;
 
     public MainViewModel(
         AppPaths paths,
@@ -53,6 +54,7 @@ public sealed class MainViewModel : ObservableObject
         ApplySettingsCommand = new AsyncRelayCommand(
             async () => { await ApplySettingsAsync().ConfigureAwait(true); },
             onException: exception => SetErrorMessage($"설정을 적용하지 못했습니다: {exception.Message}"));
+        ToggleCompactViewCommand = new AsyncRelayCommand(ToggleCompactViewAsync);
     }
 
     public TimerViewModel Timer1 { get; }
@@ -73,7 +75,15 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref noticeMessage, value);
     }
 
+    public bool IsCompactView
+    {
+        get => isCompactView;
+        private set => SetProperty(ref isCompactView, value);
+    }
+
     public ICommand ApplySettingsCommand { get; }
+
+    public ICommand ToggleCompactViewCommand { get; }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -84,6 +94,7 @@ public sealed class MainViewModel : ObservableObject
 
         var loadResult = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(true);
         savedSettings = loadResult.Settings;
+        IsCompactView = savedSettings.UseCompactView;
         Timer1.ApplySavedSettings(savedSettings.Timer1);
         Timer2.ApplySavedSettings(savedSettings.Timer2);
         Alarm.ApplySavedSettings(savedSettings.Alarm);
@@ -121,11 +132,12 @@ public sealed class MainViewModel : ObservableObject
             return false;
         }
 
-        var candidate = new AppSettings(
-            AppSettings.CurrentSchemaVersion,
-            timer1Settings,
-            timer2Settings,
-            alarmSettings);
+        var candidate = savedSettings with
+        {
+            Timer1 = timer1Settings,
+            Timer2 = timer2Settings,
+            Alarm = alarmSettings,
+        };
         var validationErrors = SettingsValidator.Validate(candidate);
         if (validationErrors.Count > 0)
         {
@@ -173,6 +185,22 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public IDisposable BeginHotkeyCapture() => hotkeyService.SuspendForCapture();
+
+    private async Task ToggleCompactViewAsync()
+    {
+        IsCompactView = !IsCompactView;
+        var candidate = savedSettings with { UseCompactView = IsCompactView };
+        try
+        {
+            await settingsService.SaveAsync(candidate, CancellationToken.None).ConfigureAwait(true);
+            savedSettings = candidate;
+            ErrorMessage = null;
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = $"보기 모드를 저장하지 못했습니다: {exception.Message}";
+        }
+    }
 
     public void Tick()
     {

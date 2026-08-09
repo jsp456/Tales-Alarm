@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TalesAlarm.Configuration;
 using TalesAlarm.Tests.Helpers;
 using TalesAlarm.Timers;
@@ -8,6 +9,22 @@ namespace TalesAlarm.Tests.Configuration;
 
 public sealed class SettingsServiceTests
 {
+    // Break caught: an additive UI preference makes existing settings look corrupt instead of defaulting to detailed view.
+    [Fact]
+    public async Task Load_LegacySettingsWithoutCompactView_UsesDetailedView()
+    {
+        using var temp = new TemporaryDirectory();
+        var paths = new AppPaths(temp.Path);
+        var json = JsonNode.Parse(JsonSerializer.Serialize(AppSettings.CreateDefault()))!.AsObject();
+        json.Remove("UseCompactView");
+        await File.WriteAllTextAsync(paths.SettingsFile, json.ToJsonString());
+
+        var result = await new SettingsService(paths, TimeProvider.System)
+            .LoadAsync(CancellationToken.None);
+
+        Assert.False(result.Settings.UseCompactView);
+    }
+
     // Break caught: changing persistence to numeric enums or failing to restore a saved setting breaks the durable settings contract.
     [Fact]
     public async Task SaveThenLoad_RoundTripsEnumsAsReadableStrings()

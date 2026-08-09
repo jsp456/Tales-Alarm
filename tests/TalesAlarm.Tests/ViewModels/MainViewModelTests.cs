@@ -11,6 +11,20 @@ namespace TalesAlarm.Tests.ViewModels;
 
 public sealed class MainViewModelTests
 {
+    // Break caught: the saved compact-view preference is ignored or toggling the view is not persisted.
+    [Fact]
+    public async Task ToggleCompactView_FromSavedCompactMode_UpdatesAndPersistsDetailedMode()
+    {
+        var settings = AppSettings.CreateDefault() with { UseCompactView = true };
+        using var fixture = Fixture.Create(settings);
+        await fixture.ViewModel.InitializeAsync();
+
+        await ((AsyncRelayCommand)fixture.ViewModel.ToggleCompactViewCommand).ExecuteAsync();
+
+        Assert.False(fixture.ViewModel.IsCompactView);
+        Assert.False(Assert.Single(fixture.Settings.SavedSettings).UseCompactView);
+    }
+
     // Break caught: a failed settings save leaves candidate hotkeys active instead of restoring saved bindings.
     [Fact]
     public async Task ApplySettings_WhenSaveFails_RestoresPreviousHotkeysAndSettings()

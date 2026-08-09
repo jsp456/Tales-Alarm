@@ -23,7 +23,8 @@ public sealed record AppSettings(
     int SchemaVersion,
     TimerSettings Timer1,
     TimerSettings Timer2,
-    AlarmSettings Alarm)
+    AlarmSettings Alarm,
+    bool UseCompactView = false)
 {
     public const int CurrentSchemaVersion = 1;
 
