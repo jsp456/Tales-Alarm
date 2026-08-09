@@ -7,6 +7,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\tales-alarm.ico</ApplicationIcon>
+    <AssemblyTitle>Tales Alarm</AssemblyTitle>
+    <Product>Tales Alarm</Product>
+    <Company>Tales Alarm</Company>
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

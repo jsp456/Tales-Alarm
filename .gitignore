@@ -3,5 +3,6 @@
 **/obj/
 artifacts/
 TestResults/
+.dotnet-cli/
 *.user
 *.suo
