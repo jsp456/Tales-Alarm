@@ -7,14 +7,27 @@
         xmlns:timers="clr-namespace:TalesAlarm.Timers"
         mc:Ignorable="d"
         Title="Tales Alarm"
-        Width="1100"
-        Height="760"
-        MinWidth="1040"
-        MinHeight="720"
         Background="#F1F5F9"
         FontFamily="Segoe UI"
         WindowStartupLocation="CenterScreen"
         Closing="OnClosing">
+    <Window.Style>
+        <Style TargetType="{x:Type Window}">
+            <Setter Property="Width" Value="1100" />
+            <Setter Property="Height" Value="760" />
+            <Setter Property="MinWidth" Value="1040" />
+            <Setter Property="MinHeight" Value="720" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompactView}" Value="True">
+                    <Setter Property="Width" Value="620" />
+                    <Setter Property="Height" Value="260" />
+                    <Setter Property="MinWidth" Value="560" />
+                    <Setter Property="MinHeight" Value="230" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Style>
+
     <Window.Resources>
         <DataTemplate x:Key="TimerCardTemplate">
             <Border Style="{StaticResource CardBorder}" Margin="8">
@@ -143,9 +156,61 @@
                 </Grid>
             </Border>
         </DataTemplate>
+
+        <DataTemplate x:Key="CompactTimerTemplate">
+            <Border Margin="6"
+                    Padding="18"
+                    Style="{StaticResource CardBorder}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock FontSize="17"
+                                   FontWeight="Bold"
+                                   Foreground="#0F172A"
+                                   Text="{Binding TimerIndex, StringFormat='타이머 {0}'}" />
+                        <Border Grid.Column="1"
+                                Padding="9,4"
+                                Background="#DBEAFE"
+                                CornerRadius="11">
+                            <TextBlock Foreground="#1E40AF"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding StatusText}" />
+                        </Border>
+                    </Grid>
+                    <TextBlock Grid.Row="1"
+                               Margin="0,12,0,0"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontFamily="Consolas"
+                               FontSize="36"
+                               FontWeight="SemiBold"
+                               Foreground="#0F172A"
+                               Text="{Binding DisplayTime}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
     </Window.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <Grid>
+        <ScrollViewer x:Name="DetailedView"
+                      VerticalScrollBarVisibility="Auto">
+            <ScrollViewer.Style>
+                <Style TargetType="{x:Type ScrollViewer}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCompactView}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ScrollViewer.Style>
         <Grid Margin="28">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -168,11 +233,15 @@
                                Foreground="#475569"
                                Text="두 개의 타이머를 전역 단축키로 독립 제어합니다." />
                 </StackPanel>
-                <Button Grid.Column="1"
-                        MinWidth="132"
-                        Style="{StaticResource PrimaryButton}"
-                        Command="{Binding ApplySettingsCommand}"
-                        Content="설정 적용" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button MinWidth="112"
+                            Command="{Binding ToggleCompactViewCommand}"
+                            Content="간단 보기" />
+                    <Button MinWidth="132"
+                            Style="{StaticResource PrimaryButton}"
+                            Command="{Binding ApplySettingsCommand}"
+                            Content="설정 적용" />
+                </StackPanel>
             </Grid>
 
             <Grid Grid.Row="1">
@@ -256,6 +325,53 @@
                     </StackPanel>
                 </Grid>
             </Border>
+            </Grid>
+        </ScrollViewer>
+
+        <Grid x:Name="CompactView" Margin="18,14,18,18">
+            <Grid.Style>
+                <Style TargetType="{x:Type Grid}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCompactView}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid Margin="6,0,6,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center"
+                           FontSize="21"
+                           FontWeight="Bold"
+                           Foreground="#0F172A"
+                           Text="Tales Alarm" />
+                <Button Grid.Column="1"
+                        MinWidth="108"
+                        MinHeight="36"
+                        Padding="14,5"
+                        Command="{Binding ToggleCompactViewCommand}"
+                        Content="상세 보기" />
+            </Grid>
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ContentControl Grid.Column="0"
+                                Content="{Binding Timer1}"
+                                ContentTemplate="{StaticResource CompactTimerTemplate}" />
+                <ContentControl Grid.Column="1"
+                                Content="{Binding Timer2}"
+                                ContentTemplate="{StaticResource CompactTimerTemplate}" />
+            </Grid>
         </Grid>
-    </ScrollViewer>
+    </Grid>
 </Window>
