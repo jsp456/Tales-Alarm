@@ -53,6 +53,31 @@ public sealed class SettingsServiceTests
         Assert.False(File.Exists(paths.SettingsFile));
     }
 
+    // Break caught: a timestamp collision must not prevent recovery or overwrite an earlier corrupt-settings backup.
+    [Fact]
+    public async Task Load_CorruptJsonWithExistingTimestampBackup_PreservesBackupAndCreatesUniqueRecoveryFile()
+    {
+        using var temp = new TemporaryDirectory();
+        var paths = new AppPaths(temp.Path);
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 9, 12, 0, 0, TimeSpan.Zero));
+        var existingBackupPath = Path.Combine(paths.RootDirectory, "settings.corrupt-20260809120000000.json");
+        const string existingBackupContent = "existing corrupt backup";
+        const string newCorruptContent = "{ new broken";
+        await File.WriteAllTextAsync(existingBackupPath, existingBackupContent);
+        await File.WriteAllTextAsync(paths.SettingsFile, newCorruptContent);
+        var service = new SettingsService(paths, time);
+
+        var result = await service.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(AppSettings.CreateDefault(), result.Settings);
+        Assert.NotNull(result.RecoveryMessage);
+        Assert.NotNull(result.BackupPath);
+        Assert.NotEqual(existingBackupPath, result.BackupPath);
+        Assert.Equal(existingBackupContent, await File.ReadAllTextAsync(existingBackupPath));
+        Assert.Equal(newCorruptContent, await File.ReadAllTextAsync(result.BackupPath));
+        Assert.False(File.Exists(paths.SettingsFile));
+    }
+
     // Break caught: accepting syntactically valid settings outside timer limits lets unsupported values enter the application.
     [Fact]
     public async Task Load_InvalidSettingsBacksUpFileAndReturnsDefaults()

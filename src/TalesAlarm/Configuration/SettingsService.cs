@@ -106,8 +106,21 @@ public sealed class SettingsService(AppPaths paths, TimeProvider timeProvider) :
     private SettingsLoadResult RecoverFromInvalidSettings()
     {
         var timestamp = timeProvider.GetUtcNow().ToString("yyyyMMddHHmmssfff");
-        var backupPath = Path.Combine(paths.RootDirectory, $"settings.corrupt-{timestamp}.json");
-        File.Move(paths.SettingsFile, backupPath);
-        return new(AppSettings.CreateDefault(), RecoveryMessage, backupPath);
+        for (var suffix = 0; ; suffix++)
+        {
+            var suffixText = suffix == 0 ? string.Empty : $"-{suffix}";
+            var backupPath = Path.Combine(
+                paths.RootDirectory,
+                $"settings.corrupt-{timestamp}{suffixText}.json");
+
+            try
+            {
+                File.Move(paths.SettingsFile, backupPath);
+                return new(AppSettings.CreateDefault(), RecoveryMessage, backupPath);
+            }
+            catch (IOException) when (File.Exists(backupPath))
+            {
+            }
+        }
     }
 }
