@@ -86,7 +86,7 @@ tests/TalesAlarm.Tests/
   Timers/CountdownTimerTests.cs
   ViewModels/MainViewModelTests.cs
   ViewModels/TimerViewModelTests.cs
-  PublishConfigurationTests.cs
+  Verify-PublishArtifact.ps1
 README.md
 ```
 
@@ -750,7 +750,7 @@ git commit -m "feat: register global hotkeys transactionally"
 
 - [ ] **Step 1: Write failing asset and playback tests**
 
-Create `ProjectFiles.FindRepositoryRoot()` by walking parent directories from `AppContext.BaseDirectory` until `TalesAlarm.sln` is found, throwing `DirectoryNotFoundException` if it reaches the drive root. Expose `DefaultAlarmWav`, `AppIcon`, and later `WinX64PublishProfile` paths from that root. The asset test reads the committed WAV header and checks `RIFF`, `WAVE`, PCM format 1, one channel, 44,100Hz, 16 bits, and exactly 66,150 samples (1.5 seconds). It also checks that the ICO begins with reserved/type/count bytes `00 00 01 00 01 00`.
+Create `ProjectFiles.FindRepositoryRoot()` by walking parent directories from `AppContext.BaseDirectory` until `TalesAlarm.sln` is found, throwing `DirectoryNotFoundException` if it reaches the drive root. Expose `DefaultAlarmWav` and `AppIcon` paths from that root. The asset test reads the committed WAV header and checks `RIFF`, `WAVE`, PCM format 1, one channel, 44,100Hz, 16 bits, and exactly 66,150 samples (1.5 seconds). It also checks that the ICO begins with reserved/type/count bytes `00 00 01 00 01 00`.
 
 ```csharp
 [Fact]
@@ -1364,34 +1364,29 @@ git commit -m "feat: keep alarm running in tray"
 **Files:**
 - Create: `src/TalesAlarm/Properties/PublishProfiles/win-x64.pubxml`
 - Modify: `src/TalesAlarm/TalesAlarm.csproj`
-- Create: `tests/TalesAlarm.Tests/PublishConfigurationTests.cs`
+- Create: `tests/Verify-PublishArtifact.ps1`
 - Create: `README.md`
 
 **Interfaces:**
 - Consumes: completed app and all acceptance tests
 - Produces: `artifacts/TalesAlarm-win-x64/TalesAlarm.exe`
 
-- [ ] **Step 1: Add publish-profile assertions before the profile**
+- [ ] **Step 1: Write the failing publish-artifact behavior check**
 
-Add `tests/TalesAlarm.Tests/PublishConfigurationTests.cs` that loads the project and publish-profile XML and asserts exact property values:
+Create `tests/Verify-PublishArtifact.ps1` with a required absolute `-PublishDirectory` argument. The script must fail with a nonzero exit code unless all of these observable behaviors hold:
 
-```csharp
-[Fact]
-public void WinX64Profile_IsSingleFileSelfContainedAndUntrimmed()
-{
-    var profile = XDocument.Load(ProjectFiles.WinX64PublishProfile);
-    Assert.Equal("win-x64", profile.Descendants("RuntimeIdentifier").Single().Value);
-    Assert.Equal("true", profile.Descendants("SelfContained").Single().Value);
-    Assert.Equal("true", profile.Descendants("PublishSingleFile").Single().Value);
-    Assert.Equal("false", profile.Descendants("PublishTrimmed").Single().Value);
-}
-```
+1. `TalesAlarm.exe` exists and has nonzero length.
+2. The directory has no required loose `.dll`, `.deps.json`, `.runtimeconfig.json`, `.wav`, or `.ico` file.
+3. With `LOCALAPPDATA` temporarily redirected to a unique directory below `[IO.Path]::GetTempPath()`, `Start-Process -WindowStyle Hidden -PassThru` keeps the exact executable process alive for three seconds.
+4. In `finally`, the script stops only the exact returned process ID, restores its previous process-level `LOCALAPPDATA`, verifies the temporary path remains below the system temp directory, and removes only that temporary directory.
 
-Run it and expect failure because the profile is missing:
+Run it before creating the profile:
 
 ```powershell
-dotnet test tests/TalesAlarm.Tests/TalesAlarm.Tests.csproj --filter FullyQualifiedName~PublishConfigurationTests
+powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -PublishDirectory artifacts/TalesAlarm-win-x64
 ```
+
+Expected: FAIL with `TalesAlarm.exe가 없습니다.` because no publish has occurred. This proves the check observes the artifact rather than the project XML.
 
 - [ ] **Step 2: Add the exact publish profile and assembly metadata**
 
@@ -1432,6 +1427,7 @@ Run separately:
 dotnet clean TalesAlarm.sln -c Release
 dotnet test TalesAlarm.sln -c Release
 dotnet publish src/TalesAlarm/TalesAlarm.csproj -p:PublishProfile=win-x64
+powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -PublishDirectory artifacts/TalesAlarm-win-x64
 ```
 
 Expected: zero warnings, every test passes, and `artifacts/TalesAlarm-win-x64/TalesAlarm.exe` exists. The artifact directory must not contain another required DLL, JSON runtime file, or loose WAV/ICO file.
@@ -1457,7 +1453,7 @@ Record the commands and observations in the final handoff; do not commit test us
 ```powershell
 git diff --check
 git status --short
-git add src/TalesAlarm/Properties src/TalesAlarm/TalesAlarm.csproj tests/TalesAlarm.Tests/PublishConfigurationTests.cs README.md
+git add src/TalesAlarm/Properties src/TalesAlarm/TalesAlarm.csproj tests/Verify-PublishArtifact.ps1 README.md
 git commit -m "build: publish standalone Tales Alarm app"
 ```
 
