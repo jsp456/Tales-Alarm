@@ -122,40 +122,13 @@ git commit -m "feat: persist compact view preference"
 
 **Files:**
 - Modify: `src/TalesAlarm/MainWindow.xaml`
-- Modify: `tests/TalesAlarm.Tests/Helpers/ProjectFiles.cs`
-- Create: `tests/TalesAlarm.Tests/Views/MainWindowLayoutTests.cs`
 - Modify: `README.md`
 
 **Interfaces:**
 - Consumes: `MainViewModel.IsCompactView`, `MainViewModel.ToggleCompactViewCommand`, and each timer's `TimerIndex`, `DisplayTime`, and `StatusText`
-- Produces: named XAML roots `DetailedView` and `CompactView`, plus detailed/compact window sizing triggers
+- Produces: detailed and compact layout roots plus detailed/compact window sizing triggers
 
-- [ ] **Step 1: Write the failing compact-layout structure test**
-
-```csharp
-[Fact]
-public void MainWindow_DefinesDetailedAndCompactViewsWithModeControls()
-{
-    var xaml = File.ReadAllText(ProjectFiles.MainWindowXaml);
-
-    Assert.Contains("x:Name=\"DetailedView\"", xaml);
-    Assert.Contains("x:Name=\"CompactView\"", xaml);
-    Assert.Contains("Content=\"간단 보기\"", xaml);
-    Assert.Contains("Content=\"상세 보기\"", xaml);
-    Assert.Contains("Text=\"{Binding DisplayTime}\"", xaml);
-    Assert.Contains("Text=\"{Binding StatusText}\"", xaml);
-}
-```
-
-Add `ProjectFiles.MainWindowXaml` as `Path.Combine(RepositoryRoot, "src", "TalesAlarm", "MainWindow.xaml")`.
-
-- [ ] **Step 2: Run the layout test and verify RED**
-
-Run: `dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~MainWindow_DefinesDetailedAndCompactViewsWithModeControls"`
-
-Expected: FAIL because the named view roots and mode buttons are absent.
-
-- [ ] **Step 3: Implement the two XAML layouts**
+- [ ] **Step 1: Implement the two XAML layouts**
 
 Add `Window.Style` setters for detailed size `1100x760` / minimum `1040x720`, with an `IsCompactView=True` data trigger for size `620x260` / minimum `560x230`. Wrap the existing `ScrollViewer` as `DetailedView`, collapse it when compact, and add a compact root that becomes visible in the inverse state.
 
@@ -184,13 +157,13 @@ Add `Window.Style` setters for detailed size `1100x760` / minimum `1040x720`, wi
 
 Bind both `간단 보기` and `상세 보기` buttons to `ToggleCompactViewCommand`. Keep settings fields and timer operation buttons only under `DetailedView`.
 
-- [ ] **Step 4: Run the layout test and verify GREEN**
+- [ ] **Step 2: Compile the WPF layout**
 
-Run: `dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~MainWindow_DefinesDetailedAndCompactViewsWithModeControls"`
+Run: `dotnet build src/TalesAlarm/TalesAlarm.csproj -c Release --no-restore`
 
-Expected: 1 passed, 0 failed.
+Expected: build succeeds with no XAML parse or binding compilation errors.
 
-- [ ] **Step 5: Document, run one full suite, and publish**
+- [ ] **Step 3: Document, run one full suite, and publish**
 
 Add a short README note describing the two view buttons and persistence. Then run:
 
@@ -202,9 +175,9 @@ powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -Publi
 
 Expected: all tests pass, publish succeeds, and the single EXE smoke test passes.
 
-- [ ] **Step 6: Commit the UI and documentation**
+- [ ] **Step 4: Commit the UI and documentation**
 
 ```powershell
-git add src/TalesAlarm/MainWindow.xaml tests/TalesAlarm.Tests/Helpers/ProjectFiles.cs tests/TalesAlarm.Tests/Views/MainWindowLayoutTests.cs README.md
+git add src/TalesAlarm/MainWindow.xaml README.md
 git commit -m "feat: add compact timer view"
 ```
