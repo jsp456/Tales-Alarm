@@ -4,5 +4,6 @@
 artifacts/
 TestResults/
 .dotnet-cli/
+.worktrees/
 *.user
 *.suo
