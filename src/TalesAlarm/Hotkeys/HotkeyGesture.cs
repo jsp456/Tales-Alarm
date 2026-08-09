@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using System.Windows.Input;
 
 namespace TalesAlarm.Hotkeys;
@@ -14,6 +15,7 @@ public enum HotkeyModifiers : uint
 
 public readonly record struct HotkeyGesture(Key Key, HotkeyModifiers Modifiers)
 {
+    [JsonIgnore]
     public bool HasNonModifierKey => Key is not Key.None
         and not Key.LeftAlt and not Key.RightAlt
         and not Key.LeftCtrl and not Key.RightCtrl
