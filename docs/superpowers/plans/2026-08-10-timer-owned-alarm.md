@@ -34,7 +34,7 @@
 - 생성: `event EventHandler<int>? TimerViewModel.Operated`
 - `Operated`의 이벤트 인수는 `TimerIndex`이며 시작, 초기화, 실제 일시정지·재개와 처리된 단축키 뒤에 한 번 발생한다.
 
-- [ ] **1단계: 단축키 처리 결과의 실패 테스트 작성**
+- [x] **1단계: 단축키 처리 결과의 실패 테스트 작성**
 
 `CountdownTimerTests`에 실행 중 정책별 반환값을 검증한다.
 
@@ -76,7 +76,7 @@ public void HandleActivation_FromIdleOrCompleted_IsHandledEvenWithIgnore(
 }
 ```
 
-- [ ] **2단계: 조작 이벤트의 실패 테스트 작성**
+- [x] **2단계: 조작 이벤트의 실패 테스트 작성**
 
 `TimerViewModelTests`에 화면 명령과 단축키를 구분하는 두 테스트를 추가한다.
 
@@ -126,7 +126,7 @@ public void HandleHotkey_WhenInputIsHandled_RaisesOperated()
 }
 ```
 
-- [ ] **3단계: 집중 테스트를 실행해 RED 확인**
+- [x] **3단계: 집중 테스트를 실행해 RED 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~CountdownTimerTests|FullyQualifiedName~TimerViewModelTests"
@@ -134,7 +134,9 @@ dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~CountdownTime
 
 예상 결과: `HandleActivation`이 `void`라 반환값을 받을 수 없고 `TimerViewModel.Operated`가 없어 컴파일이 실패한다.
 
-- [ ] **4단계: `HandleActivation` 처리 여부 반환 구현**
+실제 결과: `void` 반환값 할당 오류 2건과 `Operated` 미정의 오류 3건으로 예상한 RED를 확인했다.
+
+- [x] **4단계: `HandleActivation` 처리 여부 반환 구현**
 
 `CountdownTimer.HandleActivation`을 다음 흐름으로 변경한다. 기존 상태 변화는 그대로 유지한다.
 
@@ -176,7 +178,7 @@ public bool HandleActivation(ReactivationPolicy policy)
 }
 ```
 
-- [ ] **5단계: `TimerViewModel.Operated` 구현**
+- [x] **5단계: `TimerViewModel.Operated` 구현**
 
 이벤트를 추가하고 실제 처리 후에만 발생시킨다.
 
@@ -234,7 +236,7 @@ private void Reset()
 private void RaiseOperated() => Operated?.Invoke(this, TimerIndex);
 ```
 
-- [ ] **6단계: 집중 테스트 GREEN 확인**
+- [x] **6단계: 집중 테스트 GREEN 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~CountdownTimerTests|FullyQualifiedName~TimerViewModelTests"
@@ -242,12 +244,16 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: 두 테스트 클래스의 모든 테스트가 통과한다.
 
-- [ ] **7단계: 작업 1 커밋**
+실제 결과: 집중 테스트 `33/33`이 통과했다.
+
+- [x] **7단계: 작업 1 커밋**
 
 ```powershell
 git add src/TalesAlarm/Timers/CountdownTimer.cs src/TalesAlarm/ViewModels/TimerViewModel.cs tests/TalesAlarm.Tests/Timers/CountdownTimerTests.cs tests/TalesAlarm.Tests/ViewModels/TimerViewModelTests.cs
 git commit -m "feat: report handled timer operations"
 ```
+
+커밋: `6d37c65`
 
 ---
 
@@ -264,7 +270,7 @@ git commit -m "feat: report handled timer operations"
 - 생성: `ITimerAlarmCoordinator.Tick()`
 - 사용: 기존 `IAlarmAudioService.StartOrExtend`, `Stop`, `Tick`, `IsPlaying`
 
-- [ ] **1단계: 소유권 분리 실패 테스트 작성**
+- [x] **1단계: 소유권 분리 실패 테스트 작성**
 
 새 `TimerAlarmCoordinatorTests`와 내부 `FakeAlarmAudioService`를 만든다.
 
@@ -302,7 +308,7 @@ public void AcknowledgeTimer_WhenBothOwnAlarm_StopsOnlyAfterLastOwner()
 }
 ```
 
-- [ ] **2단계: 독립 만료와 종료 시각 재조정 실패 테스트 작성**
+- [x] **2단계: 독립 만료와 종료 시각 재조정 실패 테스트 작성**
 
 ```csharp
 [Fact]
@@ -353,7 +359,7 @@ public void StartTimerAlarm_ForSameTimer_ReplacesItsDeadline()
 }
 ```
 
-- [ ] **3단계: 미리 듣기 소유권 실패 테스트 작성**
+- [x] **3단계: 미리 듣기 소유권 실패 테스트 작성**
 
 ```csharp
 [Fact]
@@ -434,7 +440,7 @@ private sealed record StartRequest(
     TimeSpan Duration);
 ```
 
-- [ ] **4단계: 새 테스트를 실행해 RED 확인**
+- [x] **4단계: 새 테스트를 실행해 RED 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~TimerAlarmCoordinatorTests"
@@ -442,7 +448,9 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: `ITimerAlarmCoordinator`와 `TimerAlarmCoordinator`가 없어 컴파일이 실패한다.
 
-- [ ] **5단계: 조정기 인터페이스와 소유권 모델 구현**
+실제 결과: `TimerAlarmCoordinator` 형식이 없다는 `CS0246` 컴파일 오류로 예상한 RED를 확인했다.
+
+- [x] **5단계: 조정기 인터페이스와 소유권 모델 구현**
 
 `TimerAlarmCoordinator.cs`에 다음 공개 계약과 비공개 항목 모델을 만든다.
 
@@ -542,7 +550,7 @@ private AlarmClaim CreateClaim(
 }
 ```
 
-- [ ] **6단계: 확인·만료·재생 조정 구현**
+- [x] **6단계: 확인·만료·재생 조정 구현**
 
 남은 시간은 `TimeProvider.GetElapsedTime(claim.StartedAt)`으로 계산한다. 만료 항목을 제거한 뒤 가장 긴 남은 시간을 가진 항목으로 저수준 서비스의 종료 시점을 맞춘다.
 
@@ -645,7 +653,7 @@ private TimeSpan GetRemaining(AlarmClaim claim) =>
     claim.Duration - timeProvider.GetElapsedTime(claim.StartedAt);
 ```
 
-- [ ] **7단계: 조정기 테스트 GREEN 확인**
+- [x] **7단계: 조정기 테스트 GREEN 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~TimerAlarmCoordinatorTests|FullyQualifiedName~AlarmAudioServiceTests"
@@ -653,12 +661,16 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: 새 조정기 테스트와 기존 저수준 오디오 반복·대체 테스트가 모두 통과한다.
 
-- [ ] **8단계: 작업 2 커밋**
+실제 결과: 새 조정기 테스트 6개와 기존 오디오 서비스 테스트 6개, 총 12개가 모두 통과했다.
+
+- [x] **8단계: 작업 2 커밋**
 
 ```powershell
 git add src/TalesAlarm/Audio/TimerAlarmCoordinator.cs tests/TalesAlarm.Tests/Audio/TimerAlarmCoordinatorTests.cs
 git commit -m "feat: coordinate timer-owned alarms"
 ```
+
+커밋: `4c923a2`
 
 ---
 
@@ -676,7 +688,7 @@ git commit -m "feat: coordinate timer-owned alarms"
 - `MainViewModel`은 `HashSet<int> pendingCompletions`를 사용한다.
 - `TimerViewModel.Operated`는 같은 번호의 대기 완료를 취소하고 `AcknowledgeTimer`를 호출한다.
 
-- [ ] **1단계: 다른 타이머 조작 분리 실패 테스트 작성**
+- [x] **1단계: 다른 타이머 조작 분리 실패 테스트 작성**
 
 `MainViewModelTests.Fixture`가 `FakeAlarmAudioService`와 실제 `TimerAlarmCoordinator`를 조합하도록 변경한 뒤 다음 테스트를 추가한다.
 
@@ -701,7 +713,7 @@ public async Task TimerOperation_StopsOnlyAlarmOwnedByThatTimer()
 }
 ```
 
-- [ ] **2단계: 두 소유권과 같은 조작 주기의 완료 취소 실패 테스트 작성**
+- [x] **2단계: 두 소유권과 같은 조작 주기의 완료 취소 실패 테스트 작성**
 
 ```csharp
 [Fact]
@@ -737,7 +749,7 @@ public async Task PauseAtDeadline_DoesNotStartAlarmAfterSameOperationAcknowledge
 }
 ```
 
-- [ ] **3단계: 미리 듣기와 설정 적용 실패 테스트 작성**
+- [x] **3단계: 미리 듣기와 설정 적용 실패 테스트 작성**
 
 ```csharp
 [Fact]
@@ -802,7 +814,7 @@ public async Task MatchingHotkey_AcknowledgesOnlyItsTimerAlarm()
 }
 ```
 
-- [ ] **4단계: ViewModel 집중 테스트 RED 확인**
+- [x] **4단계: ViewModel 집중 테스트 RED 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~MainViewModelTests"
@@ -810,7 +822,9 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: 현재 `MainViewModel`은 완료 타이머 출처를 보존하지 않고 어떤 타이머 조작도 오디오 조정기에 전달하지 않으므로 새 테스트가 실패하거나 새 생성자 계약 때문에 컴파일이 실패한다.
 
-- [ ] **5단계: `AlarmSettingsViewModel` 미리 듣기 연결**
+실제 결과: 테스트 Fixture가 전달한 `TimerAlarmCoordinator`를 기존 생성자의 `IAlarmAudioService` 매개변수로 변환할 수 없다는 `CS1503` 오류로 예상한 RED를 확인했다.
+
+- [x] **5단계: `AlarmSettingsViewModel` 미리 듣기 연결**
 
 필드와 생성자 매개변수를 `ITimerAlarmCoordinator alarmCoordinator`로 바꾸고 `Preview`의 마지막 호출을 다음처럼 교체한다.
 
@@ -823,7 +837,7 @@ alarmCoordinator.StartPreview(
 
 가져오기, 기본음 복원과 설정 저장 코드는 변경하지 않는다.
 
-- [ ] **6단계: `MainViewModel`의 완료·조작 연결 구현**
+- [x] **6단계: `MainViewModel`의 완료·조작 연결 구현**
 
 필드와 생성자 의존성을 교체하고 이벤트를 연결한다.
 
@@ -884,7 +898,7 @@ private void OnTimerOperated(object? sender, int timerIndex)
 
 `pendingCompletions.Remove`는 `Pause`, 단축키 등의 내부 `Tick`에서 완료 이벤트가 먼저 발생한 뒤 같은 사용자 조작이 이어지는 경우 알람이 다음 화면 주기에 다시 시작되지 않게 한다.
 
-- [ ] **7단계: 앱 구성과 테스트 Fixture 갱신**
+- [x] **7단계: 앱 구성과 테스트 Fixture 갱신**
 
 `App.ComposeAndShowApplication`에서 저수준 서비스 바로 다음에 조정기를 만든다.
 
@@ -913,7 +927,7 @@ ViewModel = new MainViewModel(
 
 `FakeAlarmAudioService`에 `StopCalls`를 추가한다. 실제 서비스와 동일하게 `IsPlaying=false`이면 `Stop`은 아무 작업도 하지 않고, 재생 중일 때만 `StopCalls`를 증가시킨다. 기존 동시 완료 테스트는 메서드 호출 횟수 대신 두 타이머를 차례로 확인했을 때 마지막 확인에서만 중지되는 사용자 결과를 검증하도록 이름과 단언을 교체한다. 기존 지연 완료 테스트와 미리 듣기 경로·시간 테스트는 유지한다.
 
-- [ ] **8단계: 설계 문서의 같은 조작 주기 경계 보강**
+- [x] **8단계: 설계 문서의 같은 조작 주기 경계 보강**
 
 `docs/superpowers/specs/2026-08-10-timer-owned-alarm-design.md`의 `MainViewModel` 부분에 다음 문장을 추가한다.
 
@@ -921,7 +935,7 @@ ViewModel = new MainViewModel(
 사용자 조작 내부에서 완료 이벤트가 먼저 발생한 경우에는 같은 타이머 번호를 대기 완료 집합에서 제거한 뒤 확인 처리해, 다음 화면 갱신에서 알람이 다시 등록되지 않게 한다.
 ```
 
-- [ ] **9단계: ViewModel·조정기 테스트 GREEN 확인**
+- [x] **9단계: ViewModel·조정기 테스트 GREEN 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~MainViewModelTests|FullyQualifiedName~TimerAlarmCoordinatorTests|FullyQualifiedName~TimerViewModelTests"
@@ -929,12 +943,16 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: 다른 타이머 조작, 두 소유권, 같은 조작 주기, 미리 듣기와 설정 적용 시나리오가 모두 통과한다.
 
-- [ ] **10단계: 작업 3 커밋**
+실제 결과: `MainViewModelTests`, `TimerAlarmCoordinatorTests`, `TimerViewModelTests`의 관련 테스트 38개가 모두 통과했다.
+
+- [x] **10단계: 작업 3 커밋**
 
 ```powershell
 git add src/TalesAlarm/App.xaml.cs src/TalesAlarm/ViewModels/MainViewModel.cs src/TalesAlarm/ViewModels/AlarmSettingsViewModel.cs tests/TalesAlarm.Tests/ViewModels/MainViewModelTests.cs docs/superpowers/specs/2026-08-10-timer-owned-alarm-design.md
 git commit -m "feat: acknowledge alarms by timer owner"
 ```
+
+커밋: `e11682a`
 
 ---
 
@@ -948,7 +966,7 @@ git commit -m "feat: acknowledge alarms by timer owner"
 - 사용자 문서에 공통 알람 설정, 해당 타이머 조작 정지, 동시 알람 유지 규칙을 설명한다.
 - 최종 산출물은 `artifacts/TalesAlarm-win-x64/TalesAlarm.exe`다.
 
-- [ ] **1단계: README 알람 동작 설명 갱신**
+- [x] **1단계: README 알람 동작 설명 갱신**
 
 `README.md`의 `알람 음원` 절에 다음 내용을 추가한다.
 
@@ -957,7 +975,7 @@ git commit -m "feat: acknowledge alarms by timer owner"
 - 두 타이머의 완료 알람이 함께 활성화된 경우 한 타이머를 조작해도 다른 타이머의 알람이 남아 있으면 소리는 계속 재생됩니다. 다른 타이머 조작과 미리 듣기는 해당 완료 알람을 중지하지 않습니다.
 ```
 
-- [ ] **2단계: 전체 Release 테스트 실행**
+- [x] **2단계: 전체 Release 테스트 실행**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore
@@ -965,7 +983,9 @@ dotnet test TalesAlarm.sln -c Release --no-restore
 
 예상 결과: 실패 0개이며 기존 설정, 오디오, 단축키, 타이머, WPF 간단 보기 테스트를 포함해 모두 통과한다.
 
-- [ ] **3단계: Windows x64 런타임 대상 복원**
+실제 결과: Release 전체 테스트 127개가 실패와 건너뜀 없이 모두 통과했다.
+
+- [x] **3단계: Windows x64 런타임 대상 복원**
 
 ```powershell
 dotnet restore src/TalesAlarm/TalesAlarm.csproj --runtime win-x64
@@ -973,7 +993,9 @@ dotnet restore src/TalesAlarm/TalesAlarm.csproj --runtime win-x64
 
 예상 결과: `project.assets.json`에 `net10.0-windows/win-x64` 대상이 생성된다.
 
-- [ ] **4단계: Release 단일 파일 게시**
+실제 결과: 복원에 성공했고 `project.assets.json`에서 `net10.0-windows/win-x64` 대상을 확인했다.
+
+- [x] **4단계: Release 단일 파일 게시**
 
 ```powershell
 dotnet publish src/TalesAlarm/TalesAlarm.csproj -p:PublishProfile=win-x64 --no-restore
@@ -981,7 +1003,9 @@ dotnet publish src/TalesAlarm/TalesAlarm.csproj -p:PublishProfile=win-x64 --no-r
 
 예상 결과: `artifacts/TalesAlarm-win-x64/TalesAlarm.exe`가 생성된다.
 
-- [ ] **5단계: 게시 산출물 실행 검증**
+실제 결과: Release 게시에 성공해 대상 경로에 `TalesAlarm.exe`를 생성했다.
+
+- [x] **5단계: 게시 산출물 실행 검증**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -PublishDirectory artifacts/TalesAlarm-win-x64
@@ -989,7 +1013,9 @@ powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -Publi
 
 예상 결과: 단일 EXE 구성과 실행 검사가 통과한다.
 
-- [ ] **6단계: 문서·작업 트리 검사**
+실제 결과: 기존 실행 인스턴스와의 최초 충돌을 확인·해소한 뒤 다시 실행해, 외부 런타임 파일 없는 173,204,553바이트 단일 EXE가 3초 이상 실행 상태를 유지함을 검증했다.
+
+- [x] **6단계: 문서·작업 트리 검사**
 
 ```powershell
 git diff --check
@@ -998,11 +1024,13 @@ git status --short
 
 예상 결과: 공백 오류가 없고, 의도한 소스·테스트·문서 파일만 변경되어 있다. `artifacts/`, `.dotnet-cli/`, `bin/`, `obj/`는 추적되지 않는다.
 
-- [ ] **7단계: 계획의 실행 결과 기록**
+실제 결과: `git diff --check`가 통과했고 README와 실행 계획만 미커밋 상태이며, 게시 EXE는 `.gitignore`의 `artifacts/` 규칙으로 제외됨을 확인했다.
+
+- [x] **7단계: 계획의 실행 결과 기록**
 
 이 계획의 완료된 체크박스를 `[x]`로 바꾸고 각 RED/GREEN, 전체 테스트 수, 게시 산출물 검증 결과를 해당 단계 아래에 실제 출력 기준으로 기록한다.
 
-- [ ] **8단계: 작업 4 커밋**
+- [x] **8단계: 작업 4 커밋**
 
 ```powershell
 git add README.md docs/superpowers/plans/2026-08-10-timer-owned-alarm.md
