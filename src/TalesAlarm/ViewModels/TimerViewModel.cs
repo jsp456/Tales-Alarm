@@ -38,6 +38,8 @@ public sealed class TimerViewModel : ObservableObject
 
     public event EventHandler? Completed;
 
+    public event EventHandler<int>? Operated;
+
     public int TimerIndex { get; }
 
     public int Hours
@@ -151,8 +153,13 @@ public sealed class TimerViewModel : ObservableObject
 
     public void HandleHotkey()
     {
-        timer.HandleActivation(appliedReactivationPolicy);
+        if (!timer.HandleActivation(appliedReactivationPolicy))
+        {
+            return;
+        }
+
         RefreshState();
+        RaiseOperated();
     }
 
     public void Tick()
@@ -165,26 +172,35 @@ public sealed class TimerViewModel : ObservableObject
     {
         timer.Start();
         RefreshState();
+        RaiseOperated();
     }
 
     private void PauseOrResume()
     {
+        var operated = false;
         if (timer.State == TimerState.Running)
         {
             timer.Pause();
+            operated = true;
         }
         else if (timer.State == TimerState.Paused)
         {
             timer.Resume();
+            operated = true;
         }
 
         RefreshState();
+        if (operated)
+        {
+            RaiseOperated();
+        }
     }
 
     private void Reset()
     {
         timer.Reset();
         RefreshState();
+        RaiseOperated();
     }
 
     private void OnTimerCompleted(object? sender, EventArgs eventArgs)
@@ -199,6 +215,8 @@ public sealed class TimerViewModel : ObservableObject
         OnPropertyChanged(nameof(StatusText));
         pauseResumeCommand.RaiseCanExecuteChanged();
     }
+
+    private void RaiseOperated() => Operated?.Invoke(this, TimerIndex);
 
     private void ValidateDraft()
     {

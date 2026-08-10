@@ -109,6 +109,53 @@ public sealed class TimerViewModelTests
         Assert.Equal("일시정지", viewModel.StatusText);
     }
 
+    // Break caught: accepted timer commands do not identify which timer should acknowledge its alarm.
+    [Fact]
+    public void Commands_RaiseOperatedWithTimerIndexAfterAcceptedActions()
+    {
+        var viewModel = CreateViewModel(out _);
+        var operated = new List<int>();
+        viewModel.Operated += (_, timerIndex) => operated.Add(timerIndex);
+
+        viewModel.StartCommand.Execute(null);
+        viewModel.PauseResumeCommand.Execute(null);
+        viewModel.PauseResumeCommand.Execute(null);
+        viewModel.ResetCommand.Execute(null);
+
+        Assert.Equal(new[] { 1, 1, 1, 1 }, operated);
+    }
+
+    // Break caught: an ignored hotkey acknowledges an alarm even though the timer was unchanged.
+    [Fact]
+    public void HandleHotkey_WhenAppliedPolicyIgnoresInput_DoesNotRaiseOperated()
+    {
+        var viewModel = new TimerViewModel(
+            1,
+            new CountdownTimer(new ManualTimeProvider(), TimeSpan.FromSeconds(10)),
+            Settings(10, ReactivationPolicy.Ignore));
+        var operated = 0;
+        viewModel.Operated += (_, _) => operated++;
+        viewModel.StartCommand.Execute(null);
+        operated = 0;
+
+        viewModel.HandleHotkey();
+
+        Assert.Equal(0, operated);
+    }
+
+    // Break caught: a handled timer hotkey fails to acknowledge its timer's active alarm.
+    [Fact]
+    public void HandleHotkey_WhenInputIsHandled_RaisesOperated()
+    {
+        var viewModel = CreateViewModel(out _);
+        var timerIndexes = new List<int>();
+        viewModel.Operated += (_, timerIndex) => timerIndexes.Add(timerIndex);
+
+        viewModel.HandleHotkey();
+
+        Assert.Equal(new[] { 1 }, timerIndexes);
+    }
+
     // Break caught: component ranges such as 60 minutes bypass validation through an equivalent total duration.
     [Fact]
     public void CreateDraftSettings_RejectsOutOfRangeComponents()

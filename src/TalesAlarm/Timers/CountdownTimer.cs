@@ -79,7 +79,7 @@ public sealed class CountdownTimer
         State = TimerState.Idle;
     }
 
-    public void HandleActivation(ReactivationPolicy policy)
+    public bool HandleActivation(ReactivationPolicy policy)
     {
         if (State == TimerState.Running)
         {
@@ -89,14 +89,14 @@ public sealed class CountdownTimer
         if (State is TimerState.Idle or TimerState.Completed)
         {
             Start();
-            return;
+            return true;
         }
 
         switch (policy)
         {
             case ReactivationPolicy.Restart:
                 Start();
-                break;
+                return true;
             case ReactivationPolicy.PauseResume:
                 if (State == TimerState.Running)
                 {
@@ -107,9 +107,9 @@ public sealed class CountdownTimer
                     Resume();
                 }
 
-                break;
+                return true;
             case ReactivationPolicy.Ignore:
-                break;
+                return false;
             default:
                 throw new ArgumentOutOfRangeException(nameof(policy));
         }

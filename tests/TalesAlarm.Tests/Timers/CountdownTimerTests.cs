@@ -50,6 +50,44 @@ public sealed class CountdownTimerTests
             timer.Remaining);
     }
 
+    // Break caught: ignored hotkeys are reported as handled and acknowledge an alarm they did not operate.
+    [Theory]
+    [InlineData(ReactivationPolicy.Restart, true)]
+    [InlineData(ReactivationPolicy.PauseResume, true)]
+    [InlineData(ReactivationPolicy.Ignore, false)]
+    public void HandleActivation_ReturnsWhetherRunningTimerWasOperated(
+        ReactivationPolicy policy,
+        bool expectedHandled)
+    {
+        var timer = new CountdownTimer(
+            new ManualTimeProvider(),
+            TimeSpan.FromSeconds(20));
+        timer.Start();
+
+        var handled = timer.HandleActivation(policy);
+
+        Assert.Equal(expectedHandled, handled);
+    }
+
+    // Break caught: Ignore prevents a completed or idle timer from starting through its hotkey.
+    [Theory]
+    [InlineData(TimerState.Idle)]
+    [InlineData(TimerState.Completed)]
+    public void HandleActivation_FromIdleOrCompleted_IsHandledEvenWithIgnore(
+        TimerState initialState)
+    {
+        var time = new ManualTimeProvider();
+        var timer = new CountdownTimer(time, TimeSpan.FromSeconds(1));
+        if (initialState == TimerState.Completed)
+        {
+            timer.Start();
+            time.Advance(TimeSpan.FromSeconds(1));
+            timer.Tick();
+        }
+
+        Assert.True(timer.HandleActivation(ReactivationPolicy.Ignore));
+    }
+
     [Fact]
     public void HandleActivation_PauseResumeFromPausedPreservesRemainingAndRestartsElapsedTime()
     {
