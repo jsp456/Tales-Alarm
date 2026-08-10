@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the current card-based compact view with a fixed `520×56` borderless strip that shows both timers and preserves detailed-view, drag, close-to-tray, and persistence behavior.
+**Goal:** Replace the card-based compact view with a fixed `520×56` borderless strip that shows both timers and preserves detailed-view, drag, close-to-tray, and persistence behavior.
 
-**Architecture:** Keep the existing `IsCompactView` state and `ToggleCompactViewCommand`. Change only the `MainWindow` presentation and window-level interactions: XAML owns the exact compact geometry and one-row layout, while code-behind handles native window dragging, restoring a maximized window to normal, and routing the custom close button through the existing `OnClosing` behavior.
+**Architecture:** Keep the existing `IsCompactView` state and `ToggleCompactViewCommand`. XAML owns the one-row timer presentation, while `MainWindow` code-behind applies window geometry explicitly because a shown WPF `Window` can hold local size values that outrank style triggers. A real STA WPF integration test exercises the rendered window and interactions instead of parsing XAML source text.
 
-**Tech Stack:** C# 14, .NET 10, WPF/XAML, xUnit, LINQ to XML, PowerShell publish verification
+**Tech Stack:** C# 14, .NET 10, WPF/XAML, xUnit
 
 ## Global Constraints
 
@@ -14,285 +14,116 @@
 - Compact mode uses `WindowStyle=None` and `ResizeMode=NoResize`.
 - Show only timer number, remaining time, status, `상세`, and `×`; do not show the app title, cards, or timer controls.
 - `999:59:59` and `일시정지` must fit without clipping or overlap.
-- Dragging any non-button strip area moves the window.
+- Dragging either timer-information area moves the window.
 - `×` follows the existing close path and hides the app to the tray rather than terminating it.
 - Returning to detailed mode restores the existing title bar, resizable behavior, `1100×760` default size, and existing minimum size.
 - Do not add ViewModel state, settings fields, dependencies, topmost behavior, snapping, geometry persistence, custom sizing, or compact timer controls.
+
+## Approved Test Amendment
+
+The user approved replacing the original source-parsing XAML test with a rendered WPF integration test. The integration test starts a test `Application` on an STA dispatcher, loads a real `MainWindow`, and observes rendered values and routed interactions. This catches consumer-visible breakage while avoiding a test that only asserts source text.
 
 ---
 
 ### Task 1: Build and verify the compact timer strip
 
 **Files:**
-- Modify: `tests/TalesAlarm.Tests/Helpers/ProjectFiles.cs`
-- Create: `tests/TalesAlarm.Tests/Views/MainWindowXamlTests.cs`
-- Modify: `src/TalesAlarm/MainWindow.xaml:13-27,160-190,331-376`
-- Modify: `src/TalesAlarm/MainWindow.xaml.cs:1-62`
-- Modify: `README.md:17`
+- Create: `tests/TalesAlarm.Tests/Views/MainWindowTests.cs`
+- Modify: `src/TalesAlarm/MainWindow.xaml`
+- Modify: `src/TalesAlarm/MainWindow.xaml.cs`
+- Modify: `README.md`
+- Modify: `docs/superpowers/specs/2026-08-10-compact-strip-design.md`
 
 **Interfaces:**
-- Consumes: `MainViewModel.IsCompactView`, `MainViewModel.ToggleCompactViewCommand`, `TimerViewModel.TimerIndex`, `TimerViewModel.DisplayTime`, `TimerViewModel.StatusText`, and the existing `MainWindow.OnClosing` handler.
-- Produces: XAML elements named `CompactView` and `CompactTimerTemplate`; event handlers `OnCompactViewMouseLeftButtonDown(object, MouseButtonEventArgs)`, `OnCompactViewIsVisibleChanged(object, DependencyPropertyChangedEventArgs)`, and `OnCompactCloseClick(object, RoutedEventArgs)`.
+- Consumes: `MainViewModel.IsCompactView`, `MainViewModel.ToggleCompactViewCommand`, `TimerViewModel.TimerIndex`, `TimerViewModel.DisplayTime`, `TimerViewModel.StatusText`, and `MainWindow.OnClosing`.
+- Produces: XAML elements `CompactView`, `CompactTimerTemplate`, and `CompactDragSurface`; handlers `OnCompactViewIsVisibleChanged`, `OnCompactDragDelta`, and `OnCompactCloseClick`.
 
-- [ ] **Step 1: Write the failing XAML contract test**
+- [x] **Step 1: Write the failing real-window integration test**
 
-Add this path next to the existing asset paths in `ProjectFiles.cs`:
-
-```csharp
-public static string MainWindowXaml => Path.Combine(
-    RepositoryRoot,
-    "src",
-    "TalesAlarm",
-    "MainWindow.xaml");
-```
-
-Create `tests/TalesAlarm.Tests/Views/MainWindowXamlTests.cs`:
+Create one STA WPF scenario that loads the real `MainWindow` and asserts these literal outcomes:
 
 ```csharp
-using System.Xml.Linq;
-using TalesAlarm.Tests.Helpers;
-
-namespace TalesAlarm.Tests.Views;
-
-public sealed class MainWindowXamlTests
-{
-    private static readonly XNamespace Presentation =
-        "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
-    private static readonly XNamespace Xaml =
-        "http://schemas.microsoft.com/winfx/2006/xaml";
-
-    // Break caught: compact mode regrows into a card window or loses its custom window controls.
-    [Fact]
-    public void CompactView_IsFixedSingleRowInformationStrip()
-    {
-        var document = XDocument.Load(ProjectFiles.MainWindowXaml);
-        var compactWindowTrigger = document.Root!
-            .Element(Presentation + "Window.Style")!
-            .Descendants(Presentation + "DataTrigger")
-            .Single(trigger => (string?)trigger.Attribute("Binding") == "{Binding IsCompactView}"
-                && (string?)trigger.Attribute("Value") == "True");
-        var setters = compactWindowTrigger
-            .Elements(Presentation + "Setter")
-            .ToDictionary(
-                setter => (string)setter.Attribute("Property")!,
-                setter => (string)setter.Attribute("Value")!);
-
-        Assert.Equal("520", setters["Width"]);
-        Assert.Equal("56", setters["Height"]);
-        Assert.Equal("520", setters["MinWidth"]);
-        Assert.Equal("56", setters["MinHeight"]);
-        Assert.Equal("None", setters["WindowStyle"]);
-        Assert.Equal("NoResize", setters["ResizeMode"]);
-
-        var compactView = document
-            .Descendants()
-            .Single(element => (string?)element.Attribute(Xaml + "Name") == "CompactView");
-        Assert.Equal(
-            "OnCompactViewMouseLeftButtonDown",
-            (string?)compactView.Attribute("MouseLeftButtonDown"));
-        Assert.Equal(
-            "OnCompactViewIsVisibleChanged",
-            (string?)compactView.Attribute("IsVisibleChanged"));
-        Assert.Empty(compactView.Descendants(Presentation + "RowDefinition"));
-        Assert.DoesNotContain(
-            compactView.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "Tales Alarm");
-
-        var timerTemplate = document
-            .Descendants(Presentation + "DataTemplate")
-            .Single(element => (string?)element.Attribute(Xaml + "Key") == "CompactTimerTemplate");
-        Assert.Contains(
-            timerTemplate.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "{Binding TimerIndex}");
-        Assert.Contains(
-            timerTemplate.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "{Binding DisplayTime}");
-        Assert.Contains(
-            timerTemplate.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "{Binding StatusText}");
-
-        var compactButtons = compactView.Descendants(Presentation + "Button").ToArray();
-        Assert.Contains(
-            compactButtons,
-            button => (string?)button.Attribute("Content") == "상세"
-                && (string?)button.Attribute("Command") == "{Binding ToggleCompactViewCommand}");
-        Assert.Contains(
-            compactButtons,
-            button => (string?)button.Attribute("Content") == "×"
-                && (string?)button.Attribute("Click") == "OnCompactCloseClick");
-    }
-}
+Assert.Equal(520, currentWindow.Width);
+Assert.Equal(56, currentWindow.Height);
+Assert.Equal(WindowStyle.None, currentWindow.WindowStyle);
+Assert.Equal(ResizeMode.NoResize, currentWindow.ResizeMode);
+Assert.Contains("1", timerTexts);
+Assert.Contains("999:59:59", timerTexts);
+Assert.Contains("일시정지", timerTexts);
+Assert.InRange(timerControl.DesiredSize.Width, 1, 204);
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+Raise `Thumb.DragDeltaEvent` and the close button's `Button.ClickEvent` against the rendered controls, then assert the changed window coordinates and existing `RequestHide` path. Switch back to detailed mode and assert `1100×760`, `SingleBorderWindow`, and `CanResize`; finally switch from `Maximized` to compact and assert `WindowState.Normal`.
+
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
 ```powershell
-dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~MainWindowXamlTests"
+dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~MainWindowTests"
 ```
 
-Expected: one failed test. The first relevant assertion reports `Expected: 520` and `Actual: 620` because the current compact trigger still uses the card-window dimensions.
+Observed failure before implementation:
 
-- [ ] **Step 3: Replace the compact window style and resources**
-
-In `MainWindow.xaml`, keep the detailed setters and replace the compact trigger with:
-
-```xml
-<DataTrigger Binding="{Binding IsCompactView}" Value="True">
-    <Setter Property="Width" Value="520" />
-    <Setter Property="Height" Value="56" />
-    <Setter Property="MinWidth" Value="520" />
-    <Setter Property="MinHeight" Value="56" />
-    <Setter Property="WindowStyle" Value="None" />
-    <Setter Property="ResizeMode" Value="NoResize" />
-</DataTrigger>
+```text
+Expected: 520
+Actual:   1100
 ```
 
-Add a compact-only button style inside `Window.Resources`, overriding the application-wide `MinHeight=44` and large padding:
+The value-source investigation showed `Width=1100` was a local WPF value, proving a style-trigger-only size change was not a reliable implementation boundary.
 
-```xml
-<Style x:Key="CompactButton"
-       TargetType="{x:Type Button}"
-       BasedOn="{StaticResource {x:Type Button}}">
-    <Setter Property="MinWidth" Value="0" />
-    <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Height" Value="32" />
-    <Setter Property="Margin" Value="3,0,0,0" />
-    <Setter Property="Padding" Value="8,0" />
-    <Setter Property="FontSize" Value="12" />
-</Style>
-```
+- [x] **Step 3: Implement explicit compact and detailed window geometry**
 
-Replace `CompactTimerTemplate` with the one-row timer presentation:
-
-```xml
-<DataTemplate x:Key="CompactTimerTemplate">
-    <Grid VerticalAlignment="Center">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <TextBlock VerticalAlignment="Center"
-                   FontSize="11"
-                   FontWeight="Bold"
-                   Foreground="#475569"
-                   Text="{Binding TimerIndex}" />
-        <TextBlock Grid.Column="1"
-                   Margin="6,0,0,0"
-                   VerticalAlignment="Center"
-                   FontFamily="Consolas"
-                   FontSize="22"
-                   FontWeight="SemiBold"
-                   Foreground="#0F172A"
-                   Text="{Binding DisplayTime}" />
-        <Border Grid.Column="2"
-                Margin="6,0,0,0"
-                Padding="5,2"
-                Background="#DBEAFE"
-                CornerRadius="5">
-            <TextBlock VerticalAlignment="Center"
-                       FontSize="11"
-                       FontWeight="SemiBold"
-                       Foreground="#1E40AF"
-                       Text="{Binding StatusText}" />
-        </Border>
-    </Grid>
-</DataTemplate>
-```
-
-Replace the existing `CompactView` grid with this single-row border. Its timer columns share available width; the fixed controls leave enough room for `999:59:59` plus `일시정지` in both timer columns:
-
-```xml
-<Border x:Name="CompactView"
-        Background="White"
-        BorderBrush="#CBD5E1"
-        BorderThickness="1"
-        MouseLeftButtonDown="OnCompactViewMouseLeftButtonDown"
-        IsVisibleChanged="OnCompactViewIsVisibleChanged">
-    <Border.Style>
-        <Style TargetType="{x:Type Border}">
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsCompactView}" Value="True">
-                    <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-    </Border.Style>
-    <Grid Margin="8,0,6,0">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <ContentControl Grid.Column="0"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Content="{Binding Timer1}"
-                        ContentTemplate="{StaticResource CompactTimerTemplate}" />
-        <Border Grid.Column="1"
-                Width="1"
-                Height="28"
-                Margin="6,0"
-                VerticalAlignment="Center"
-                Background="#CBD5E1" />
-        <ContentControl Grid.Column="2"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Content="{Binding Timer2}"
-                        ContentTemplate="{StaticResource CompactTimerTemplate}" />
-        <Button Grid.Column="3"
-                MinWidth="46"
-                Style="{StaticResource CompactButton}"
-                Command="{Binding ToggleCompactViewCommand}"
-                Content="상세" />
-        <Button Grid.Column="4"
-                Width="32"
-                Padding="0"
-                Background="Transparent"
-                BorderThickness="0"
-                FontSize="18"
-                Foreground="#64748B"
-                Style="{StaticResource CompactButton}"
-                ToolTip="트레이로 숨기기"
-                Click="OnCompactCloseClick"
-                Content="×" />
-    </Grid>
-</Border>
-```
-
-- [ ] **Step 4: Add the three window interaction handlers**
-
-Add the input namespace to `MainWindow.xaml.cs`:
+`MainWindow.xaml.cs` applies geometry from the compact root's real visibility:
 
 ```csharp
-using System.Windows.Input;
-```
-
-Add these handlers before `OnClosing`:
-
-```csharp
-private void OnCompactViewMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
-{
-    if (eventArgs.ChangedButton == MouseButton.Left
-        && eventArgs.LeftButton == MouseButtonState.Pressed)
-    {
-        DragMove();
-    }
-}
-
 private void OnCompactViewIsVisibleChanged(
     object sender,
     DependencyPropertyChangedEventArgs eventArgs)
 {
-    if (eventArgs.NewValue is true && WindowState != WindowState.Normal)
+    if (eventArgs.NewValue is true)
+    {
+        ApplyCompactWindowLayout();
+    }
+    else
+    {
+        ApplyDetailedWindowLayout();
+    }
+}
+
+private void ApplyCompactWindowLayout()
+{
+    if (WindowState != WindowState.Normal)
     {
         WindowState = WindowState.Normal;
     }
+
+    MinWidth = 520;
+    MinHeight = 56;
+    Width = 520;
+    Height = 56;
+    ResizeMode = ResizeMode.NoResize;
+    WindowStyle = WindowStyle.None;
+}
+
+private void ApplyDetailedWindowLayout()
+{
+    WindowStyle = WindowStyle.SingleBorderWindow;
+    ResizeMode = ResizeMode.CanResize;
+    MinWidth = 1040;
+    MinHeight = 720;
+    Width = 1100;
+    Height = 760;
+}
+```
+
+The drag and close handlers remain window-level operations:
+
+```csharp
+private void OnCompactDragDelta(object sender, DragDeltaEventArgs eventArgs)
+{
+    Left += eventArgs.HorizontalChange;
+    Top += eventArgs.VerticalChange;
 }
 
 private void OnCompactCloseClick(object sender, RoutedEventArgs eventArgs)
@@ -301,53 +132,51 @@ private void OnCompactCloseClick(object sender, RoutedEventArgs eventArgs)
 }
 ```
 
-`Close()` intentionally reaches the existing `OnClosing` handler, which cancels normal closure and hides the window. Do not call `Hide()` directly and do not change `AllowClose`.
+- [x] **Step 4: Replace compact cards with the single-row XAML strip**
 
-- [ ] **Step 5: Run the focused test and WPF build and verify GREEN**
+Use a three-column `CompactTimerTemplate` for number, `22px` Consolas time, and a small status pill. Place two template instances in equal star columns, separated by a one-pixel divider. Overlay a `Thumb` with an explicitly transparent custom template across the timer columns so the platform theme cannot cover the information, then place `상세` plus `×` buttons in fixed trailing columns. Override the application button minimum height with a compact-only `32px` button style.
 
-Run:
+- [x] **Step 5: Verify the focused test and WPF build GREEN**
+
+Commands:
 
 ```powershell
-dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~MainWindowXamlTests"
+dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~MainWindowTests"
 dotnet build src/TalesAlarm/TalesAlarm.csproj -c Release --no-restore
 ```
 
-Expected: one focused test passes, and the WPF build succeeds with no XAML parse, event-handler, or C# compilation errors.
+Observed: one focused test passed; WPF build completed with zero warnings and zero errors. The test also renders the strip to a bitmap and requires visible dark pixels in both timer regions, preventing a drag-surface theme from covering the information.
 
-- [ ] **Step 6: Update the user-facing compact-view description**
+- [x] **Step 6: Update user-facing documentation**
 
-Replace README usage step 6 with:
+README usage step 6 describes the taskbar-height strip, timer-area dragging, `상세`, `×`, tray hiding, and persisted view mode. The design spec records the approved real-window integration test.
 
-```markdown
-6. **간단 보기**를 누르면 작업표시줄 높이의 한 줄 창에서 두 타이머의 남은 시간과 상태만 확인할 수 있습니다. 버튼이 아닌 영역을 끌어 이동하거나 **상세**로 돌아갈 수 있으며, **×**는 창을 트레이로 숨깁니다. 마지막 보기 모드는 다음 실행에도 유지됩니다.
-```
-
-- [ ] **Step 7: Run the full release and publish verification**
-
-Run:
+- [x] **Step 7: Run full release and publish verification**
 
 ```powershell
-dotnet test TalesAlarm.sln -c Release
-dotnet publish src/TalesAlarm/TalesAlarm.csproj -p:PublishProfile=win-x64
+dotnet test TalesAlarm.sln -c Release --no-restore
+dotnet publish src/TalesAlarm/TalesAlarm.csproj -p:PublishProfile=win-x64 --no-restore
 powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -PublishDirectory artifacts/TalesAlarm-win-x64
 ```
 
-Expected: the full test suite passes, publish succeeds, and artifact verification confirms a working single-file `artifacts/TalesAlarm-win-x64/TalesAlarm.exe` with no loose runtime or asset files.
+Observed: all `107` tests passed, publish succeeded, and artifact verification confirmed a working `173,196,361` byte single-file `artifacts/TalesAlarm-win-x64/TalesAlarm.exe` with no loose runtime or asset files.
 
-- [ ] **Step 8: Inspect the published window behavior**
+- [x] **Step 8: Inspect isolated compact UI and published launch behavior**
 
-Run `artifacts/TalesAlarm-win-x64/TalesAlarm.exe` and verify all of the following before closing it from the tray menu:
+The Release single-file EXE was launched successfully by the artifact smoke test. To avoid mutating the user's real LocalAppData settings, the identical Debug UI code was launched with the supported isolated `--data-root` option and captured at `96` DPI. Verify:
 
 1. `간단 보기` changes the window to a single `520×56` row with no native title bar.
-2. Timer numbers, times, and every status (`대기`, `실행 중`, `일시정지`, `완료`) remain readable without overlap; also inspect `999:59:59` by configuring a timer to 999 hours.
-3. Dragging either timer-information area moves the window; clicking `상세` does not start a drag.
-4. `×` hides the window and the tray icon can show it again.
-5. Maximizing detailed mode before switching still yields a normal `520×56` compact window.
-6. Returning to detailed mode restores the existing title bar, resizable layout, and all detailed controls.
+2. Both maximum-length time and status values remain readable without overlap.
+3. Dragging either timer area moves the window; `상세` and `×` remain clickable.
+4. `×` hides to tray and the tray icon shows the window again.
+5. A maximized detailed window switches to a normal compact strip.
+6. Returning to detailed mode restores its title bar, resizable layout, and controls.
+
+Observed: the captured compact window measured exactly `520×56`; both timers, `999:59:59`, both status pills, `상세`, and `×` were visible without overlap. Automated WPF interaction coverage verified dragging, tray hiding, maximized-to-compact normalization, and detailed restoration.
 
 - [ ] **Step 9: Commit the tested feature**
 
 ```powershell
-git add tests/TalesAlarm.Tests/Helpers/ProjectFiles.cs tests/TalesAlarm.Tests/Views/MainWindowXamlTests.cs src/TalesAlarm/MainWindow.xaml src/TalesAlarm/MainWindow.xaml.cs README.md
+git add src/TalesAlarm/MainWindow.xaml src/TalesAlarm/MainWindow.xaml.cs tests/TalesAlarm.Tests/Views/MainWindowTests.cs README.md docs/superpowers/specs/2026-08-10-compact-strip-design.md docs/superpowers/plans/2026-08-10-compact-strip.md
 git commit -m "feat: shrink compact view to timer strip"
 ```

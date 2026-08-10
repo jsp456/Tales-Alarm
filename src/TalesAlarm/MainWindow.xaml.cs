@@ -1,16 +1,25 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls.Primitives;
 using TalesAlarm.ViewModels;
 
 namespace TalesAlarm;
 
 public partial class MainWindow : System.Windows.Window
 {
+    private const double DetailedWindowWidth = 1100;
+    private const double DetailedWindowHeight = 760;
+    private const double DetailedWindowMinWidth = 1040;
+    private const double DetailedWindowMinHeight = 720;
+    private const double CompactWindowWidth = 520;
+    private const double CompactWindowHeight = 56;
+
     private IDisposable? hotkeyCaptureLease;
 
     public MainWindow()
     {
         InitializeComponent();
+        ApplyDetailedWindowLayout();
     }
 
     public event EventHandler? RequestHide;
@@ -61,6 +70,56 @@ public partial class MainWindow : System.Windows.Window
     {
         hotkeyCaptureLease?.Dispose();
         hotkeyCaptureLease = null;
+    }
+
+    private void OnCompactViewIsVisibleChanged(
+        object sender,
+        DependencyPropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.NewValue is true)
+        {
+            ApplyCompactWindowLayout();
+        }
+        else
+        {
+            ApplyDetailedWindowLayout();
+        }
+    }
+
+    private void OnCompactDragDelta(object sender, DragDeltaEventArgs eventArgs)
+    {
+        Left += eventArgs.HorizontalChange;
+        Top += eventArgs.VerticalChange;
+    }
+
+    private void OnCompactCloseClick(object sender, RoutedEventArgs eventArgs)
+    {
+        Close();
+    }
+
+    private void ApplyCompactWindowLayout()
+    {
+        if (WindowState != WindowState.Normal)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        MinWidth = CompactWindowWidth;
+        MinHeight = CompactWindowHeight;
+        Width = CompactWindowWidth;
+        Height = CompactWindowHeight;
+        ResizeMode = ResizeMode.NoResize;
+        WindowStyle = WindowStyle.None;
+    }
+
+    private void ApplyDetailedWindowLayout()
+    {
+        WindowStyle = WindowStyle.SingleBorderWindow;
+        ResizeMode = ResizeMode.CanResize;
+        MinWidth = DetailedWindowMinWidth;
+        MinHeight = DetailedWindowMinHeight;
+        Width = DetailedWindowWidth;
+        Height = DetailedWindowHeight;
     }
 
     private void OnClosing(object? sender, CancelEventArgs eventArgs)
