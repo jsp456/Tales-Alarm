@@ -10,7 +10,7 @@ public sealed class AlarmSettingsViewModel : ObservableObject
 {
     private readonly AppPaths paths;
     private readonly IUserAudioStore userAudioStore;
-    private readonly IAlarmAudioService audioService;
+    private readonly ITimerAlarmCoordinator alarmCoordinator;
     private readonly Func<AlarmSettings, CancellationToken, Task<bool>> persistSettings;
     private readonly Action<string?> reportError;
     private readonly RelayCommand previewCommand;
@@ -24,13 +24,14 @@ public sealed class AlarmSettingsViewModel : ObservableObject
     public AlarmSettingsViewModel(
         AppPaths paths,
         IUserAudioStore userAudioStore,
-        IAlarmAudioService audioService,
+        ITimerAlarmCoordinator alarmCoordinator,
         Func<AlarmSettings, CancellationToken, Task<bool>> persistSettings,
         Action<string?> reportError)
     {
         this.paths = paths ?? throw new ArgumentNullException(nameof(paths));
         this.userAudioStore = userAudioStore ?? throw new ArgumentNullException(nameof(userAudioStore));
-        this.audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
+        this.alarmCoordinator = alarmCoordinator
+            ?? throw new ArgumentNullException(nameof(alarmCoordinator));
         this.persistSettings = persistSettings ?? throw new ArgumentNullException(nameof(persistSettings));
         this.reportError = reportError ?? throw new ArgumentNullException(nameof(reportError));
         previewCommand = new RelayCommand(Preview, CanPreview);
@@ -159,7 +160,7 @@ public sealed class AlarmSettingsViewModel : ObservableObject
             return;
         }
 
-        audioService.StartOrExtend(
+        alarmCoordinator.StartPreview(
             GetRequestedPath(),
             defaultAlarmPath,
             TimeSpan.FromSeconds((double)playbackSeconds));

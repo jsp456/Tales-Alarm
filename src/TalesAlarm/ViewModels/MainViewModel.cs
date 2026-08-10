@@ -12,13 +12,13 @@ public sealed class MainViewModel : ObservableObject
     private readonly AppPaths paths;
     private readonly ISettingsService settingsService;
     private readonly IGlobalHotkeyService hotkeyService;
-    private readonly IAlarmAudioService audioService;
+    private readonly ITimerAlarmCoordinator alarmCoordinator;
     private readonly IDefaultAlarmInstaller defaultAlarmInstaller;
+    private readonly HashSet<int> pendingCompletions = [];
     private AppSettings savedSettings = AppSettings.CreateDefault();
     private string defaultAlarmPath = string.Empty;
     private string? errorMessage;
     private string? noticeMessage;
-    private bool completionPending;
     private bool initialized;
     private bool isCompactView;
 
@@ -28,14 +28,15 @@ public sealed class MainViewModel : ObservableObject
         CountdownTimer timer2,
         ISettingsService settingsService,
         IGlobalHotkeyService hotkeyService,
-        IAlarmAudioService audioService,
+        ITimerAlarmCoordinator alarmCoordinator,
         IUserAudioStore userAudioStore,
         IDefaultAlarmInstaller defaultAlarmInstaller)
     {
         this.paths = paths ?? throw new ArgumentNullException(nameof(paths));
         this.settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         this.hotkeyService = hotkeyService ?? throw new ArgumentNullException(nameof(hotkeyService));
-        this.audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
+        this.alarmCoordinator = alarmCoordinator
+            ?? throw new ArgumentNullException(nameof(alarmCoordinator));
         this.defaultAlarmInstaller = defaultAlarmInstaller
             ?? throw new ArgumentNullException(nameof(defaultAlarmInstaller));
 
@@ -45,12 +46,14 @@ public sealed class MainViewModel : ObservableObject
         Alarm = new AlarmSettingsViewModel(
             paths,
             userAudioStore,
-            audioService,
+            alarmCoordinator,
             PersistAlarmSettingsAsync,
             SetErrorMessage);
         Alarm.ApplySavedSettings(defaults.Alarm);
         Timer1.Completed += OnTimerCompleted;
         Timer2.Completed += OnTimerCompleted;
+        Timer1.Operated += OnTimerOperated;
+        Timer2.Operated += OnTimerOperated;
         ApplySettingsCommand = new AsyncRelayCommand(
             async () => { await ApplySettingsAsync().ConfigureAwait(true); },
             onException: exception => SetErrorMessage($"설정을 적용하지 못했습니다: {exception.Message}"));
@@ -204,25 +207,24 @@ public sealed class MainViewModel : ObservableObject
 
     public void Tick()
     {
-        var completedAny = completionPending;
-        completionPending = false;
         try
         {
             Timer1.Tick();
             Timer2.Tick();
-            completedAny |= completionPending;
-            completionPending = false;
-            if (completedAny)
+            foreach (var timerIndex in pendingCompletions.ToArray())
             {
-                audioService.StartOrExtend(
+                alarmCoordinator.StartTimerAlarm(
+                    timerIndex,
                     GetRequestedAudioPath(savedSettings.Alarm),
                     defaultAlarmPath,
                     TimeSpan.FromSeconds((double)savedSettings.Alarm.PlaybackSeconds));
             }
+
+            pendingCompletions.Clear();
         }
         finally
         {
-            audioService.Tick();
+            alarmCoordinator.Tick();
         }
     }
 
@@ -263,7 +265,19 @@ public sealed class MainViewModel : ObservableObject
         return Path.GetFullPath(Path.Combine(paths.AudioDirectory, settings.CustomFileName));
     }
 
-    private void OnTimerCompleted(object? sender, EventArgs eventArgs) => completionPending = true;
+    private void OnTimerCompleted(object? sender, EventArgs eventArgs)
+    {
+        if (sender is TimerViewModel timer)
+        {
+            pendingCompletions.Add(timer.TimerIndex);
+        }
+    }
+
+    private void OnTimerOperated(object? sender, int timerIndex)
+    {
+        pendingCompletions.Remove(timerIndex);
+        alarmCoordinator.AcknowledgeTimer(timerIndex);
+    }
 
     private void OnHotkeyPressed(object? sender, int timerIndex)
     {

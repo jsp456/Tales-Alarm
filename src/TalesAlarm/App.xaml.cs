@@ -147,6 +147,9 @@ public partial class App : System.Windows.Application
         hotkeyService = new GlobalHotkeyService(new Win32HotkeyNativeApi());
         var audioBackend = new MediaPlayerAudioBackend();
         alarmAudioService = new AlarmAudioService(TimeProvider.System, audioBackend);
+        var alarmCoordinator = new TimerAlarmCoordinator(
+            TimeProvider.System,
+            alarmAudioService);
         var audioProbe = new MediaPlayerAudioProbe(Dispatcher);
         var userAudioStore = new UserAudioStore(paths, audioProbe);
         var defaultAlarmInstaller = new DefaultAlarmInstaller(paths);
@@ -156,7 +159,7 @@ public partial class App : System.Windows.Application
             new CountdownTimer(TimeProvider.System, defaults.Timer2.Duration),
             settingsService,
             hotkeyService,
-            alarmAudioService,
+            alarmCoordinator,
             userAudioStore,
             defaultAlarmInstaller);
 

@@ -53,6 +53,8 @@
 
 `MainViewModel`은 타이머 완료 이벤트의 발신자에서 타이머 번호를 보존해 조정기에 전달한다. 기존의 출처 없는 `completionPending` 불리언은 `HashSet<int>` 형태의 대기 완료 집합으로 교체하고, 한 번의 화면 갱신 주기에 들어온 모든 타이머 번호를 조정기에 등록한다. 각 `TimerViewModel`의 사용자 조작 이벤트는 같은 번호의 `AcknowledgeTimer`로 연결한다.
 
+사용자 조작 내부에서 완료 이벤트가 먼저 발생한 경우에는 같은 타이머 번호를 대기 완료 집합에서 제거한 뒤 확인 처리해, 다음 화면 갱신에서 알람이 다시 등록되지 않게 한다.
+
 `MainViewModel.Tick`은 성공·실패 여부와 관계없이 조정기의 `Tick`을 호출한다. `AlarmSettingsViewModel`의 미리 듣기는 저수준 오디오 서비스를 직접 호출하지 않고 조정기의 `StartPreview`를 사용한다.
 
 ## 시간 및 경계 처리

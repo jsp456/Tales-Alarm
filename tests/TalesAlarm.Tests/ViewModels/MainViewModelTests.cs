@@ -43,9 +43,9 @@ public sealed class MainViewModelTests
         Assert.Contains("저장", fixture.ViewModel.ErrorMessage);
     }
 
-    // Break caught: simultaneous timer completions start overlapping playback requests.
+    // Break caught: acknowledging either one of two completed timers stops both alarms.
     [Fact]
-    public async Task Tick_WhenBothTimersComplete_StartsAudioExactlyOnce()
+    public async Task TimerOperation_WhenBothAlarmsAreActive_KeepsOtherAlarmPlaying()
     {
         var settings = WithDurations(1, 1);
         using var fixture = Fixture.Create(settings);
@@ -56,8 +56,12 @@ public sealed class MainViewModelTests
 
         fixture.ViewModel.Tick();
 
-        Assert.Single(fixture.Audio.StartRequests);
-        Assert.Equal(1, fixture.Audio.TickCalls);
+        fixture.ViewModel.Timer1.ResetCommand.Execute(null);
+        Assert.True(fixture.Audio.IsPlaying);
+
+        fixture.ViewModel.Timer2.ResetCommand.Execute(null);
+        Assert.False(fixture.Audio.IsPlaying);
+        Assert.Equal(1, fixture.Audio.StopCalls);
     }
 
     // Break caught: a later completion while sound is active is ignored instead of extending its deadline.
@@ -75,6 +79,106 @@ public sealed class MainViewModelTests
         fixture.ViewModel.Tick();
 
         Assert.Equal(2, fixture.Audio.StartRequests.Count);
+    }
+
+    // Break caught: operating timer 2 stops an alarm that belongs only to timer 1.
+    [Fact]
+    public async Task TimerOperation_StopsOnlyAlarmOwnedByThatTimer()
+    {
+        using var fixture = Fixture.Create(WithDurations(1, 10));
+        await fixture.ViewModel.InitializeAsync();
+        fixture.ViewModel.Timer1.StartCommand.Execute(null);
+        fixture.Time.Advance(TimeSpan.FromSeconds(1));
+        fixture.ViewModel.Tick();
+        Assert.True(fixture.Audio.IsPlaying);
+
+        fixture.ViewModel.Timer2.ResetCommand.Execute(null);
+        Assert.True(fixture.Audio.IsPlaying);
+        Assert.Equal(0, fixture.Audio.StopCalls);
+
+        fixture.ViewModel.Timer1.ResetCommand.Execute(null);
+        Assert.False(fixture.Audio.IsPlaying);
+        Assert.Equal(1, fixture.Audio.StopCalls);
+    }
+
+    // Break caught: pausing exactly at the deadline re-registers the completion on the next UI tick.
+    [Fact]
+    public async Task PauseAtDeadline_DoesNotStartAlarmAfterSameOperationAcknowledgesIt()
+    {
+        using var fixture = Fixture.Create(WithDurations(1, 10));
+        await fixture.ViewModel.InitializeAsync();
+        fixture.ViewModel.Timer1.StartCommand.Execute(null);
+        fixture.Time.Advance(TimeSpan.FromSeconds(1));
+
+        fixture.ViewModel.Timer1.PauseResumeCommand.Execute(null);
+        fixture.ViewModel.Tick();
+
+        Assert.False(fixture.Audio.IsPlaying);
+        Assert.Empty(fixture.Audio.StartRequests);
+    }
+
+    // Break caught: a timer operation also stops a preview that has no timer owner.
+    [Fact]
+    public async Task TimerOperation_WhenOnlyPreviewOwnsPlayback_DoesNotStopPreview()
+    {
+        using var fixture = Fixture.Create();
+        await fixture.ViewModel.InitializeAsync();
+        fixture.ViewModel.Alarm.PreviewCommand.Execute(null);
+
+        fixture.ViewModel.Timer1.ResetCommand.Execute(null);
+
+        Assert.True(fixture.Audio.IsPlaying);
+        Assert.Equal(0, fixture.Audio.StopCalls);
+    }
+
+    // Break caught: applying settings acknowledges an active completed-timer alarm.
+    [Fact]
+    public async Task ApplySettings_DoesNotAcknowledgeActiveTimerAlarm()
+    {
+        using var fixture = Fixture.Create(WithDurations(1, 10));
+        await fixture.ViewModel.InitializeAsync();
+        fixture.ViewModel.Timer1.StartCommand.Execute(null);
+        fixture.Time.Advance(TimeSpan.FromSeconds(1));
+        fixture.ViewModel.Tick();
+        fixture.ViewModel.Timer1.Hours = 0;
+        fixture.ViewModel.Timer1.Minutes = 0;
+        fixture.ViewModel.Timer1.Seconds = 2;
+
+        Assert.True(await fixture.ViewModel.ApplySettingsAsync());
+        Assert.True(fixture.Audio.IsPlaying);
+    }
+
+    // Break caught: switching compact view acknowledges an active completed-timer alarm.
+    [Fact]
+    public async Task ToggleCompactView_DoesNotAcknowledgeActiveTimerAlarm()
+    {
+        using var fixture = Fixture.Create(WithDurations(1, 10));
+        await fixture.ViewModel.InitializeAsync();
+        fixture.ViewModel.Timer1.StartCommand.Execute(null);
+        fixture.Time.Advance(TimeSpan.FromSeconds(1));
+        fixture.ViewModel.Tick();
+
+        await ((AsyncRelayCommand)fixture.ViewModel.ToggleCompactViewCommand).ExecuteAsync();
+
+        Assert.True(fixture.Audio.IsPlaying);
+    }
+
+    // Break caught: either timer hotkey acknowledges every active timer alarm.
+    [Fact]
+    public async Task MatchingHotkey_AcknowledgesOnlyItsTimerAlarm()
+    {
+        using var fixture = Fixture.Create(WithDurations(1, 1));
+        await fixture.ViewModel.InitializeAsync();
+        fixture.ViewModel.Timer1.StartCommand.Execute(null);
+        fixture.ViewModel.Timer2.StartCommand.Execute(null);
+        fixture.Time.Advance(TimeSpan.FromSeconds(1));
+        fixture.ViewModel.Tick();
+
+        fixture.Hotkeys.RaisePressed(1);
+        Assert.True(fixture.Audio.IsPlaying);
+
+        fixture.Hotkeys.RaisePressed(2);
+        Assert.False(fixture.Audio.IsPlaying);
     }
 
     // Break caught: a known global hotkey ID starts both timers or the wrong timer.
@@ -230,6 +334,7 @@ public sealed class MainViewModelTests
             Settings = new FakeSettingsService(new(settings, recoveryMessage, backupPath));
             Hotkeys = new FakeGlobalHotkeyService();
             Audio = new FakeAlarmAudioService();
+            AlarmCoordinator = new TimerAlarmCoordinator(Time, Audio);
             AudioStore = new FakeUserAudioStore();
             DefaultAlarmPath = Path.Combine(Paths.AudioDirectory, "default-alarm.wav");
             var installer = new FakeDefaultAlarmInstaller(DefaultAlarmPath);
@@ -239,7 +344,7 @@ public sealed class MainViewModelTests
                 new CountdownTimer(Time, settings.Timer2.Duration),
                 Settings,
                 Hotkeys,
-                Audio,
+                AlarmCoordinator,
                 AudioStore,
                 installer);
         }
@@ -250,6 +355,7 @@ public sealed class MainViewModelTests
         public FakeSettingsService Settings { get; }
         public FakeGlobalHotkeyService Hotkeys { get; }
         public FakeAlarmAudioService Audio { get; }
+        public TimerAlarmCoordinator AlarmCoordinator { get; }
         public FakeUserAudioStore AudioStore { get; }
         public string DefaultAlarmPath { get; }
         public MainViewModel ViewModel { get; }
@@ -330,6 +436,7 @@ public sealed class MainViewModelTests
         public bool IsPlaying { get; private set; }
         public string? LastError => null;
         public List<StartRequest> StartRequests { get; } = [];
+        public int StopCalls { get; private set; }
         public int TickCalls { get; private set; }
 
         public void StartOrExtend(string requestedPath, string fallbackPath, TimeSpan duration)
@@ -340,7 +447,16 @@ public sealed class MainViewModelTests
 
         public void Tick() => TickCalls++;
 
-        public void Stop() => IsPlaying = false;
+        public void Stop()
+        {
+            if (!IsPlaying)
+            {
+                return;
+            }
+
+            IsPlaying = false;
+            StopCalls++;
+        }
     }
 
     private sealed record StartRequest(string RequestedPath, string FallbackPath, TimeSpan Duration);
