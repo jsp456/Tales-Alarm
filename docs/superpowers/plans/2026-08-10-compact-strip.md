@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the card-based compact view with a fixed `520×56` borderless strip that shows both timers and preserves detailed-view, drag, close-to-tray, and persistence behavior.
+**Goal:** Replace the card-based compact view with a fixed `520×56` strip without native window chrome that shows both timers and preserves detailed-view, drag, close-to-tray, and persistence behavior.
 
 **Architecture:** Keep the existing `IsCompactView` state and `ToggleCompactViewCommand`. XAML owns the one-row timer presentation, while `MainWindow` code-behind applies window geometry explicitly because a shown WPF `Window` can hold local size values that outrank style triggers. A real STA WPF integration test exercises the rendered window and interactions instead of parsing XAML source text.
 
@@ -12,6 +12,7 @@
 
 - Compact mode is a fixed `520×56` WPF device-independent-pixel window.
 - Compact mode uses `WindowStyle=None` and `ResizeMode=NoResize`.
+- A one-DIP content outline may remain to distinguish the strip edge; “borderless” refers to native window chrome.
 - Show only timer number, remaining time, status, `상세`, and `×`; do not show the app title, cards, or timer controls.
 - `999:59:59` and `일시정지` must fit without clipping or overlap.
 - Dragging either timer-information area moves the window.
@@ -53,7 +54,7 @@ Assert.Contains("일시정지", timerTexts);
 Assert.InRange(timerControl.DesiredSize.Width, 1, 204);
 ```
 
-Raise `Thumb.DragDeltaEvent` and the close button's `Button.ClickEvent` against the rendered controls, then assert the changed window coordinates and existing `RequestHide` path. Switch back to detailed mode and assert `1100×760`, `SingleBorderWindow`, and `CanResize`; finally switch from `Maximized` to compact and assert `WindowState.Normal`.
+Raise `Thumb.DragDeltaEvent`, and invoke the actual `상세` and `×` buttons through WPF UI Automation. Assert the changed window coordinates, command-driven detailed transition, existing `RequestHide` path, and preserved compact geometry after hide and re-show. Also assert `1100×760`, `SingleBorderWindow`, and `CanResize` in detailed mode; finally switch from `Maximized` to compact and assert `WindowState.Normal`.
 
 - [x] **Step 2: Run the focused test and verify RED**
 
@@ -81,7 +82,7 @@ private void OnCompactViewIsVisibleChanged(
     object sender,
     DependencyPropertyChangedEventArgs eventArgs)
 {
-    if (eventArgs.NewValue is true)
+    if (CompactView.Visibility == Visibility.Visible)
     {
         ApplyCompactWindowLayout();
     }
@@ -174,9 +175,30 @@ The Release single-file EXE was launched successfully by the artifact smoke test
 
 Observed: the captured compact window measured exactly `520×56`; both timers, `999:59:59`, both status pills, `상세`, and `×` were visible without overlap. Automated WPF interaction coverage verified dragging, tray hiding, maximized-to-compact normalization, and detailed restoration.
 
-- [ ] **Step 9: Commit the tested feature**
+- [x] **Step 9: Commit the tested feature**
 
 ```powershell
 git add src/TalesAlarm/MainWindow.xaml src/TalesAlarm/MainWindow.xaml.cs tests/TalesAlarm.Tests/Views/MainWindowTests.cs README.md docs/superpowers/specs/2026-08-10-compact-strip-design.md docs/superpowers/plans/2026-08-10-compact-strip.md
 git commit -m "feat: shrink compact view to timer strip"
 ```
+
+Committed as `9f22a81`.
+
+### Task 2: Harden tray-hide lifecycle coverage after review
+
+- [x] **Step 10: Add real button invocation and a hide/re-show regression test**
+
+The test command now toggles `IsCompactView`, and `ButtonAutomationPeer` with `IInvokeProvider` exercises the buttons' real click path. The first focused run reproduced the lifecycle bug after `×` hid the window:
+
+```text
+Expected: 520
+Actual:   1100
+```
+
+- [x] **Step 11: Preserve compact geometry while the parent window is hidden**
+
+`IsVisibleChanged` also fires when the parent window hides. The handler now checks `CompactView.Visibility`, which represents the bound compact-mode state, rather than treating inherited `IsVisible=false` as a request for detailed mode. The focused integration test passes through `상세`, `×`, hide, and re-show.
+
+- [x] **Step 12: Repeat full verification and prepare the review fix commit**
+
+Observed: the focused lifecycle test passed, all `107` Release tests passed, the single-file publish verifier passed for the `173,196,361` byte EXE, and follow-up review reported no remaining Critical, Important, or Minor findings.

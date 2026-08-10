@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Threading;
 using System.Windows;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -20,6 +22,7 @@ public sealed class MainWindowTests
         using var host = new WpfApplicationHost();
         MainWindow? window = null;
         WindowViewModel? viewModel = null;
+        var hideRequested = false;
 
         try
         {
@@ -97,9 +100,10 @@ public sealed class MainWindowTests
                 });
                 Assert.Equal(112, currentWindow.Left);
                 Assert.Equal(193, currentWindow.Top);
+
+                InvokeButton(detailButton);
             }, DispatcherPriority.ApplicationIdle);
 
-            host.Invoke(() => viewModel!.IsCompactView = false);
             host.Invoke(() =>
             {
                 var currentWindow = window!;
@@ -109,7 +113,11 @@ public sealed class MainWindowTests
                 Assert.Equal(ResizeMode.CanResize, currentWindow.ResizeMode);
 
                 currentWindow.WindowState = WindowState.Maximized;
-                viewModel!.IsCompactView = true;
+                var compactRequestButton = Assert.Single(
+                    GetLogicalDescendants<Button>(currentWindow),
+                    button => button.IsVisible
+                        && ReferenceEquals(button.Command, viewModel!.ToggleCompactViewCommand));
+                InvokeButton(compactRequestButton);
             }, DispatcherPriority.ApplicationIdle);
 
             host.Invoke(() =>
@@ -123,10 +131,31 @@ public sealed class MainWindowTests
                 var closeButton = Assert.Single(
                     GetLogicalDescendants<Button>(compactView),
                     button => Equals(button.Content, "×"));
-                var hideRequested = false;
                 currentWindow.RequestHide += (_, _) => hideRequested = true;
-                closeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                InvokeButton(closeButton);
+            }, DispatcherPriority.ApplicationIdle);
+
+            host.Invoke(() =>
+            {
+                var currentWindow = window!;
                 Assert.True(hideRequested);
+                Assert.False(currentWindow.IsVisible);
+                Assert.Equal(520, currentWindow.Width);
+                Assert.Equal(56, currentWindow.Height);
+                Assert.Equal(WindowStyle.None, currentWindow.WindowStyle);
+                Assert.Equal(ResizeMode.NoResize, currentWindow.ResizeMode);
+
+                currentWindow.Show();
+            }, DispatcherPriority.ApplicationIdle);
+
+            host.Invoke(() =>
+            {
+                var currentWindow = window!;
+                Assert.True(currentWindow.IsVisible);
+                Assert.Equal(520, currentWindow.Width);
+                Assert.Equal(56, currentWindow.Height);
+                Assert.Equal(WindowStyle.None, currentWindow.WindowStyle);
+                Assert.Equal(ResizeMode.NoResize, currentWindow.ResizeMode);
             }, DispatcherPriority.ApplicationIdle);
         }
         finally
@@ -140,6 +169,14 @@ public sealed class MainWindowTests
                 });
             }
         }
+    }
+
+    private static void InvokeButton(Button button)
+    {
+        var peer = new ButtonAutomationPeer(button);
+        var invokeProvider = Assert.IsAssignableFrom<IInvokeProvider>(
+            peer.GetPattern(PatternInterface.Invoke));
+        invokeProvider.Invoke();
     }
 
     private static IEnumerable<T> GetLogicalDescendants<T>(DependencyObject parent)
@@ -216,6 +253,12 @@ public sealed class MainWindowTests
     {
         private bool isCompactView = true;
 
+        public WindowViewModel()
+        {
+            ToggleCompactViewCommand = new TestCommand(
+                () => IsCompactView = !IsCompactView);
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public bool IsCompactView
@@ -237,12 +280,12 @@ public sealed class MainWindowTests
 
         public TimerDisplay Timer2 { get; } = new(2, "00:00:00", "완료");
 
-        public ICommand ToggleCompactViewCommand { get; } = new NoOpCommand();
+        public ICommand ToggleCompactViewCommand { get; }
     }
 
     public sealed record TimerDisplay(int TimerIndex, string DisplayTime, string StatusText);
 
-    private sealed class NoOpCommand : ICommand
+    private sealed class TestCommand(Action execute) : ICommand
     {
         public event EventHandler? CanExecuteChanged
         {
@@ -254,6 +297,7 @@ public sealed class MainWindowTests
 
         public void Execute(object? parameter)
         {
+            execute();
         }
     }
 

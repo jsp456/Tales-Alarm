@@ -76,7 +76,7 @@ public partial class MainWindow : System.Windows.Window
         object sender,
         DependencyPropertyChangedEventArgs eventArgs)
     {
-        if (eventArgs.NewValue is true)
+        if (CompactView.Visibility == Visibility.Visible)
         {
             ApplyCompactWindowLayout();
         }
