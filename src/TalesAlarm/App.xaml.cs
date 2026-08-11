@@ -24,6 +24,7 @@ public partial class App : System.Windows.Application
     private FileLogger? logger;
     private SingleInstanceService? singleInstance;
     private GlobalHotkeyService? hotkeyService;
+    private RawInputMessageHook? hotkeyMessageHook;
     private AlarmAudioService? alarmAudioService;
     private TrayService? trayService;
     private DispatcherTimer? dispatcherTimer;
@@ -124,6 +125,7 @@ public partial class App : System.Windows.Application
 
         windowSource = null;
         windowHook = null;
+        hotkeyMessageHook = null;
         hotkeyService?.Dispose();
         hotkeyService = null;
         alarmAudioService?.Dispose();
@@ -144,7 +146,9 @@ public partial class App : System.Windows.Application
     {
         var defaults = AppSettings.CreateDefault();
         var settingsService = new SettingsService(paths, TimeProvider.System);
-        hotkeyService = new GlobalHotkeyService(new Win32HotkeyNativeApi());
+        hotkeyService = new GlobalHotkeyService(
+            new Win32RawInputNativeApi(),
+            message => logger?.Write(message));
         var audioBackend = new MediaPlayerAudioBackend();
         alarmAudioService = new AlarmAudioService(TimeProvider.System, audioBackend);
         var alarmCoordinator = new TimerAlarmCoordinator(
@@ -172,23 +176,9 @@ public partial class App : System.Windows.Application
         hotkeyService.Attach(windowHandle);
         windowSource = HwndSource.FromHwnd(windowHandle)
             ?? throw new InvalidOperationException("메인 창 메시지 소스를 만들지 못했습니다.");
-        windowHook = ProcessWindowMessage;
+        hotkeyMessageHook = new RawInputMessageHook(hotkeyService);
+        windowHook = hotkeyMessageHook.ProcessWindowMessage;
         windowSource.AddHook(windowHook);
-    }
-
-    private nint ProcessWindowMessage(
-        nint windowHandle,
-        int message,
-        nint wParam,
-        nint lParam,
-        ref bool handled)
-    {
-        if (hotkeyService?.ProcessWindowMessage(message, wParam) == true)
-        {
-            handled = true;
-        }
-
-        return 0;
     }
 
     private void OnDispatcherTick(object? sender, EventArgs eventArgs) => mainViewModel?.Tick();
