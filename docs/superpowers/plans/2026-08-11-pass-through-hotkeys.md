@@ -26,7 +26,7 @@
 
 ---
 
-### 작업 1: Raw Input 네이티브 경계 추가
+### Task 1: Raw Input 네이티브 경계 추가
 
 **파일:**
 - 생성: `src/TalesAlarm/Hotkeys/RawInputNativeApi.cs`
@@ -38,12 +38,13 @@
 - 생성: `IRawInputNativeApi.TryUnregisterKeyboard(out int)`
 - 생성: `IRawInputNativeApi.ReadKeyboard(nint)`
 - 생성: `RawKeyboardInput`, `RawKeyboardFlags`, `RawInputReadStatus`, `RawInputReadResult`
+- 생성: 테스트 가능한 저수준 경계 `IRawInputNativeMethods`
 - 생성: `Win32RawInputNativeApi`
 - 이 작업에서는 현재 서비스를 빌드 가능한 상태로 유지하기 위해 기존 `IHotkeyNativeApi` 파일을 보존하고, 작업 3에서 서비스와 함께 제거한다.
 
 - [ ] **1단계: 등록 플래그와 실제 창 등록 수명 테스트 작성**
 
-`AssemblyInfo.cs`에 테스트 어셈블리에서 내부 등록 플래그를 볼 수 있게 다음 특성을 추가한다.
+`AssemblyInfo.cs`에 테스트 어셈블리에서 내부 네이티브 호출 경계를 사용할 수 있게 다음 특성을 추가한다.
 
 ```csharp
 using System.Runtime.CompilerServices;
@@ -51,7 +52,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("TalesAlarm.Tests")]
 ```
 
-새 `RawInputNativeApiTests`에 패스스루 플래그 계약과 실제 Windows 창 핸들 등록·해제를 검증한다.
+새 `RawInputNativeApiTests`는 내부 상수 자체가 아니라 `Win32RawInputNativeApi`가 운영체제 경계로 실제 전달하는 장치 설명자를 검증한다. 이어서 실제 Windows 창 핸들 등록·해제를 검증한다.
 
 ```csharp
 using System.Runtime.ExceptionServices;
@@ -65,15 +66,37 @@ namespace TalesAlarm.Tests.Hotkeys;
 public sealed class RawInputNativeApiTests
 {
     [Fact]
-    public void KeyboardRegistrationFlags_EnableBackgroundAndDeviceChangeOnly()
+    public void TryRegisterKeyboard_ForwardsPassThroughKeyboardDescriptor()
     {
+        var methods = new RecordingRawInputNativeMethods();
+        var api = new Win32RawInputNativeApi(methods);
+
+        Assert.True(api.TryRegisterKeyboard((nint)42, out var errorCode));
+
+        Assert.Equal(0, errorCode);
+        var device = Assert.Single(methods.Registrations);
+        Assert.Equal((ushort)0x01, device.UsagePage);
+        Assert.Equal((ushort)0x06, device.Usage);
+        Assert.Equal((nint)42, device.TargetWindow);
         Assert.Equal(
             RawInputDeviceFlags.InputSink | RawInputDeviceFlags.DeviceNotify,
-            Win32RawInputNativeApi.KeyboardRegistrationFlags);
-        Assert.False(Win32RawInputNativeApi.KeyboardRegistrationFlags
-            .HasFlag(RawInputDeviceFlags.NoLegacy));
-        Assert.False(Win32RawInputNativeApi.KeyboardRegistrationFlags
-            .HasFlag(RawInputDeviceFlags.NoHotkeys));
+            device.Flags);
+    }
+
+    [Fact]
+    public void TryUnregisterKeyboard_ForwardsRemoveWithNullTarget()
+    {
+        var methods = new RecordingRawInputNativeMethods();
+        var api = new Win32RawInputNativeApi(methods);
+
+        Assert.True(api.TryUnregisterKeyboard(out var errorCode));
+
+        Assert.Equal(0, errorCode);
+        var device = Assert.Single(methods.Registrations);
+        Assert.Equal((ushort)0x01, device.UsagePage);
+        Assert.Equal((ushort)0x06, device.Usage);
+        Assert.Equal(RawInputDeviceFlags.Remove, device.Flags);
+        Assert.Equal(0, device.TargetWindow);
     }
 
     [Fact]
@@ -113,6 +136,29 @@ public sealed class RawInputNativeApiTests
             ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
+
+    private sealed class RecordingRawInputNativeMethods : IRawInputNativeMethods
+    {
+        public List<RawInputDevice> Registrations { get; } = [];
+
+        public bool TryRegisterRawInputDevice(
+            ref RawInputDevice device,
+            out int errorCode)
+        {
+            Registrations.Add(device);
+            errorCode = 0;
+            return true;
+        }
+
+        public uint GetRawInputData(
+            nint rawInputHandle,
+            uint command,
+            nint data,
+            ref uint dataSize,
+            uint headerSize,
+            out int errorCode) =>
+            throw new NotSupportedException();
+    }
 }
 
 [CollectionDefinition("Raw input integration", DisableParallelization = true)]
@@ -127,7 +173,7 @@ public sealed class RawInputIntegrationCollection
 dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~RawInputNativeApiTests"
 ```
 
-예상 결과: `IRawInputNativeApi`, `RawInputDeviceFlags`, `Win32RawInputNativeApi`가 없어 컴파일이 실패한다.
+예상 결과: `IRawInputNativeApi`, `IRawInputNativeMethods`, `RawInputDeviceFlags`, `Win32RawInputNativeApi`가 없어 컴파일이 실패한다.
 
 - [ ] **3단계: Raw Input 공개 이벤트 계약 구현**
 
@@ -240,9 +286,19 @@ public sealed class Win32RawInputNativeApi : IRawInputNativeApi
     private const uint RimTypeKeyboard = 1;
     private const uint NativeError = uint.MaxValue;
     private const int ErrorInvalidData = 13;
-
-    internal const RawInputDeviceFlags KeyboardRegistrationFlags =
+    private const RawInputDeviceFlags KeyboardRegistrationFlags =
         RawInputDeviceFlags.InputSink | RawInputDeviceFlags.DeviceNotify;
+    private readonly IRawInputNativeMethods methods;
+
+    public Win32RawInputNativeApi()
+        : this(new Win32RawInputNativeMethods())
+    {
+    }
+
+    internal Win32RawInputNativeApi(IRawInputNativeMethods methods)
+    {
+        this.methods = methods ?? throw new ArgumentNullException(nameof(methods));
+    }
 
     public bool TryRegisterKeyboard(nint windowHandle, out int errorCode)
     {
@@ -252,23 +308,13 @@ public sealed class Win32RawInputNativeApi : IRawInputNativeApi
         }
 
         var device = CreateDevice(KeyboardRegistrationFlags, windowHandle);
-        var success = RawInputNativeMethods.RegisterRawInputDevices(
-            ref device,
-            1,
-            checked((uint)Marshal.SizeOf<RawInputDevice>()));
-        errorCode = success ? 0 : Marshal.GetLastWin32Error();
-        return success;
+        return methods.TryRegisterRawInputDevice(ref device, out errorCode);
     }
 
     public bool TryUnregisterKeyboard(out int errorCode)
     {
         var device = CreateDevice(RawInputDeviceFlags.Remove, 0);
-        var success = RawInputNativeMethods.RegisterRawInputDevices(
-            ref device,
-            1,
-            checked((uint)Marshal.SizeOf<RawInputDevice>()));
-        errorCode = success ? 0 : Marshal.GetLastWin32Error();
-        return success;
+        return methods.TryRegisterRawInputDevice(ref device, out errorCode);
     }
 
     private static RawInputDevice CreateDevice(
@@ -283,7 +329,55 @@ public sealed class Win32RawInputNativeApi : IRawInputNativeApi
         };
 }
 
-internal static partial class RawInputNativeMethods
+internal interface IRawInputNativeMethods
+{
+    bool TryRegisterRawInputDevice(
+        ref RawInputDevice device,
+        out int errorCode);
+
+    uint GetRawInputData(
+        nint rawInputHandle,
+        uint command,
+        nint data,
+        ref uint dataSize,
+        uint headerSize,
+        out int errorCode);
+}
+
+internal sealed class Win32RawInputNativeMethods : IRawInputNativeMethods
+{
+    public bool TryRegisterRawInputDevice(
+        ref RawInputDevice device,
+        out int errorCode)
+    {
+        var success = RawInputPInvoke.RegisterRawInputDevices(
+            ref device,
+            1,
+            checked((uint)Marshal.SizeOf<RawInputDevice>()));
+        errorCode = success ? 0 : Marshal.GetLastWin32Error();
+        return success;
+    }
+
+    public uint GetRawInputData(
+        nint rawInputHandle,
+        uint command,
+        nint data,
+        ref uint dataSize,
+        uint headerSize,
+        out int errorCode)
+    {
+        var result = RawInputPInvoke.GetRawInputData(
+            rawInputHandle,
+            command,
+            data,
+            ref dataSize,
+            headerSize);
+        errorCode = result == uint.MaxValue ? Marshal.GetLastWin32Error() : 0;
+        return result;
+    }
+}
+
+internal static partial class RawInputPInvoke
 {
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -312,15 +406,16 @@ public RawInputReadResult ReadKeyboard(nint rawInputHandle)
     var headerSize = checked((uint)Marshal.SizeOf<RawInputHeader>());
     var keyboardSize = checked((uint)Marshal.SizeOf<RawKeyboard>());
     uint requiredSize = 0;
-    var queryResult = RawInputNativeMethods.GetRawInputData(
+    var queryResult = methods.GetRawInputData(
         rawInputHandle,
         RidInput,
         0,
         ref requiredSize,
-        headerSize);
+        headerSize,
+        out var queryError);
     if (queryResult == NativeError)
     {
-        return RawInputReadResult.Failed(Marshal.GetLastWin32Error());
+        return RawInputReadResult.Failed(queryError);
     }
 
     if (queryResult != 0
@@ -334,15 +429,16 @@ public RawInputReadResult ReadKeyboard(nint rawInputHandle)
     try
     {
         var copiedSize = requiredSize;
-        var copied = RawInputNativeMethods.GetRawInputData(
+        var copied = methods.GetRawInputData(
             rawInputHandle,
             RidInput,
             buffer,
             ref copiedSize,
-            headerSize);
+            headerSize,
+            out var copyError);
         if (copied == NativeError)
         {
-            return RawInputReadResult.Failed(Marshal.GetLastWin32Error());
+            return RawInputReadResult.Failed(copyError);
         }
 
         if (copied != copiedSize || copied < headerSize)
@@ -406,7 +502,7 @@ git commit -m "feat: add raw input native boundary"
 
 ---
 
-### 작업 2: 장치별 키 상태와 제스처 정규화 구현
+### Task 2: 장치별 키 상태와 제스처 정규화 구현
 
 **파일:**
 - 생성: `src/TalesAlarm/Hotkeys/RawKeyboardState.cs`
@@ -704,17 +800,18 @@ git commit -m "feat: track raw keyboard gesture state"
 
 ---
 
-### 작업 3: `GlobalHotkeyService`를 Raw Input 조정자로 교체
+### Task 3: `GlobalHotkeyService`를 Raw Input 조정자로 교체
 
 **파일:**
 - 수정: `src/TalesAlarm/Hotkeys/GlobalHotkeyService.cs`
+- 생성: `src/TalesAlarm/Hotkeys/RawInputMessageHook.cs`
 - 수정: `src/TalesAlarm/App.xaml.cs:24-33,143-190`
 - 삭제: `src/TalesAlarm/Hotkeys/HotkeyNativeApi.cs`
 - 삭제: `tests/TalesAlarm.Tests/Helpers/FakeHotkeyNativeApi.cs`
 - 생성: `tests/TalesAlarm.Tests/Helpers/FakeRawInputNativeApi.cs`
 - 수정: `tests/TalesAlarm.Tests/Hotkeys/GlobalHotkeyServiceTests.cs`
 - 수정: `tests/TalesAlarm.Tests/ViewModels/MainViewModelTests.cs:397-423`
-- 생성: `tests/TalesAlarm.Tests/Hotkeys/AppRawInputIntegrationTests.cs`
+- 생성: `tests/TalesAlarm.Tests/Hotkeys/RawInputMessageHookTests.cs`
 
 **인터페이스:**
 - 유지: `HotkeyPressed`, `ActiveBindings`, `Attach`, `Apply`, `SuspendForCapture`, `HotkeyApplyResult`
@@ -722,7 +819,7 @@ git commit -m "feat: track raw keyboard gesture state"
 - 소비: `IRawInputNativeApi`, `RawKeyboardState`
 - 생성: `GlobalHotkeyService.WmInput=0x00FF`, `WmInputDeviceChange=0x00FE`, `GidcRemoval=2`
 - 제거: `IHotkeyNativeApi`, `Win32HotkeyNativeApi`, `RegisterHotKey`, `UnregisterHotKey`, `WM_HOTKEY`
-- `App`은 `GlobalHotkeyService(new Win32RawInputNativeApi(), diagnostic)`를 구성하고 `lParam`을 전달하되 WPF `handled`를 변경하지 않는다.
+- `RawInputMessageHook`은 WPF 메시지의 `message`, `wParam`, `lParam`을 서비스에 전달하되 `handled`를 변경하지 않으며, `App`은 이 훅을 연결한다.
 
 - [ ] **1단계: 가짜 Raw Input API 작성**
 
@@ -992,48 +1089,70 @@ public void ProcessWindowMessage_WhenMessageOrDeviceChangeIsUnknown_DoesNothing(
 
 기존 중복 타이머 번호, 중복 제스처, 수정키 전용 제스처, 연결 전 `Apply` 거부 테스트는 유지하되 네이티브 등록 목록 단언을 `ActiveBindings`와 `RegisterCallCount` 단언으로 바꾼다.
 
-같은 RED 주기에 `AppRawInputIntegrationTests.cs`를 추가해 구성 루트의 `lParam` 전달, 비처리 훅과 금지된 런타임 의존성을 고정한다.
+같은 RED 주기에 `RawInputMessageHookTests.cs`를 추가해 실제 훅 객체의 `lParam` 전달과 비처리 동작을 검증한다. 금지 API 제거는 작업 5의 명시적 규정 검사로 검증하고, 소스 문자열을 단위 테스트로 고정하지 않는다.
 
 ```csharp
-using System.IO;
-using TalesAlarm.Tests.Helpers;
-
 namespace TalesAlarm.Tests.Hotkeys;
 
-public sealed class AppRawInputIntegrationTests
+public sealed class RawInputMessageHookTests
 {
-    [Fact]
-    public void AppHook_ForwardsLParamWithoutMarkingMessageHandled()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProcessWindowMessage_ForwardsAllMessageDataWithoutChangingHandled(
+        bool initialHandled)
     {
-        var source = File.ReadAllText(Path.Combine(
-            ProjectFiles.RepositoryRoot,
-            "src",
-            "TalesAlarm",
-            "App.xaml.cs"));
+        var service = new RecordingGlobalHotkeyService();
+        var hook = new RawInputMessageHook(service);
+        var handled = initialHandled;
 
-        Assert.Contains(
-            "ProcessWindowMessage(message, wParam, lParam);",
-            source);
-        Assert.DoesNotContain("handled = true", source);
+        var result = hook.ProcessWindowMessage(
+            (nint)42,
+            GlobalHotkeyService.WmInput,
+            (nint)1,
+            (nint)123,
+            ref handled);
+
+        Assert.Equal(0, result);
+        Assert.Equal(initialHandled, handled);
+        Assert.Equal(
+            (GlobalHotkeyService.WmInput, (nint)1, (nint)123),
+            service.LastMessage);
     }
 
-    [Fact]
-    public void ProductionSource_HasNoExclusiveHotkeyOrInputInjectionApi()
+    private sealed class RecordingGlobalHotkeyService : IGlobalHotkeyService
     {
-        var sourceRoot = Path.Combine(
-            ProjectFiles.RepositoryRoot,
-            "src",
-            "TalesAlarm");
-        var source = string.Join(
-            Environment.NewLine,
-            Directory.EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
-                .Select(File.ReadAllText));
+        public event EventHandler<int>? HotkeyPressed
+        {
+            add { }
+            remove { }
+        }
 
-        Assert.DoesNotContain("RegisterHotKey", source);
-        Assert.DoesNotContain("UnregisterHotKey", source);
-        Assert.DoesNotContain("SetWindowsHookEx", source);
-        Assert.DoesNotContain("SendInput", source);
-        Assert.DoesNotContain("keybd_event", source);
+        public IReadOnlyList<HotkeyBinding> ActiveBindings => [];
+        public (int Message, nint WParam, nint LParam)? LastMessage { get; private set; }
+
+        public void Attach(nint windowHandle)
+        {
+        }
+
+        public HotkeyApplyResult Apply(IReadOnlyList<HotkeyBinding> bindings) =>
+            new(true, null);
+
+        public IDisposable SuspendForCapture() => new EmptyLease();
+
+        public void ProcessWindowMessage(int message, nint wParam, nint lParam) =>
+            LastMessage = (message, wParam, lParam);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class EmptyLease : IDisposable
+        {
+            public void Dispose()
+            {
+            }
+        }
     }
 }
 ```
@@ -1083,7 +1202,7 @@ public async Task InitializeAsync_WhenRawInputRegistrationFailed_ShowsHotkeyErro
 - [ ] **6단계: 서비스 집중 테스트를 실행해 RED 확인**
 
 ```powershell
-dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~GlobalHotkeyServiceTests|FullyQualifiedName~AppRawInputIntegrationTests|FullyQualifiedName~MainViewModelTests"
+dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~GlobalHotkeyServiceTests|FullyQualifiedName~RawInputMessageHookTests|FullyQualifiedName~MainViewModelTests"
 ```
 
 예상 결과: 생성자 의존성, 메시지 시그니처, Raw Input 상수와 앱 훅이 현재 `RegisterHotKey` 구현과 달라 컴파일 또는 새 단언이 실패한다.
@@ -1343,20 +1462,35 @@ hotkeyService = new GlobalHotkeyService(
     message => logger?.Write(message));
 ```
 
-WPF 훅은 `lParam`까지 전달하고 `handled`는 변경하지 않는다.
+`RawInputMessageHook.cs`에 테스트 가능한 WPF 훅을 만들며 `lParam`까지 전달하고 `handled`는 변경하지 않는다.
 
 ```csharp
-private nint ProcessWindowMessage(
-    nint windowHandle,
-    int message,
-    nint wParam,
-    nint lParam,
-    ref bool handled)
+namespace TalesAlarm.Hotkeys;
+
+internal sealed class RawInputMessageHook(IGlobalHotkeyService hotkeyService)
 {
-    hotkeyService?.ProcessWindowMessage(message, wParam, lParam);
-    return 0;
+    public nint ProcessWindowMessage(
+        nint windowHandle,
+        int message,
+        nint wParam,
+        nint lParam,
+        ref bool handled)
+    {
+        hotkeyService.ProcessWindowMessage(message, wParam, lParam);
+        return 0;
+    }
 }
 ```
+
+`App`은 `RawInputMessageHook? hotkeyMessageHook` 필드를 보관하고 창 핸들 연결 뒤 다음처럼 훅을 등록한다.
+
+```csharp
+hotkeyMessageHook = new RawInputMessageHook(hotkeyService);
+windowHook = hotkeyMessageHook.ProcessWindowMessage;
+windowSource.AddHook(windowHook);
+```
+
+종료 시 기존 `RemoveHook` 뒤 `hotkeyMessageHook = null`로 참조를 정리하고, `App`의 기존 비공개 `ProcessWindowMessage` 메서드는 제거한다.
 
 `MainViewModelTests.FakeGlobalHotkeyService`에 5단계의 `NextApplyResult`, 실패 시 비변경 `Apply`, 세 매개변수 `void ProcessWindowMessage`를 적용한다. 프로덕션 `MainViewModel`의 초기화 오류 표시, 저장 실패 시 `Apply(previousBindings)` 복원과 `HotkeyPressed` 타이머 라우팅 코드는 유지한다.
 
@@ -1365,7 +1499,7 @@ private nint ProcessWindowMessage(
 - [ ] **12단계: 서비스·상태 테스트 GREEN 확인**
 
 ```powershell
-dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~GlobalHotkeyServiceTests|FullyQualifiedName~RawKeyboardStateTests|FullyQualifiedName~AppRawInputIntegrationTests|FullyQualifiedName~MainViewModelTests|FullyQualifiedName~MainWindowTests|FullyQualifiedName~TimerViewModelTests"
+dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~GlobalHotkeyServiceTests|FullyQualifiedName~RawKeyboardStateTests|FullyQualifiedName~RawInputMessageHookTests|FullyQualifiedName~MainViewModelTests|FullyQualifiedName~MainWindowTests|FullyQualifiedName~TimerViewModelTests"
 ```
 
 예상 결과: 장치 등록 수명, 등록 실패 격리, 바인딩 검증, 정확한 수정키, 자동 반복, 캡처 중 억제, 설정 적용·장치 제거 초기화, `lParam` 전달, 비처리 WPF 훅, 오류 표시와 기존 타이머 라우팅 테스트가 모두 통과한다.
@@ -1373,13 +1507,13 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 - [ ] **13단계: 작업 3 커밋**
 
 ```powershell
-git add src/TalesAlarm/App.xaml.cs src/TalesAlarm/Hotkeys/GlobalHotkeyService.cs src/TalesAlarm/Hotkeys/HotkeyNativeApi.cs tests/TalesAlarm.Tests/Helpers/FakeHotkeyNativeApi.cs tests/TalesAlarm.Tests/Helpers/FakeRawInputNativeApi.cs tests/TalesAlarm.Tests/Hotkeys/GlobalHotkeyServiceTests.cs tests/TalesAlarm.Tests/Hotkeys/AppRawInputIntegrationTests.cs tests/TalesAlarm.Tests/ViewModels/MainViewModelTests.cs
+git add src/TalesAlarm/App.xaml.cs src/TalesAlarm/Hotkeys/GlobalHotkeyService.cs src/TalesAlarm/Hotkeys/HotkeyNativeApi.cs src/TalesAlarm/Hotkeys/RawInputMessageHook.cs tests/TalesAlarm.Tests/Helpers/FakeHotkeyNativeApi.cs tests/TalesAlarm.Tests/Helpers/FakeRawInputNativeApi.cs tests/TalesAlarm.Tests/Hotkeys/GlobalHotkeyServiceTests.cs tests/TalesAlarm.Tests/Hotkeys/RawInputMessageHookTests.cs tests/TalesAlarm.Tests/ViewModels/MainViewModelTests.cs
 git commit -m "feat: connect pass-through raw input hotkeys"
 ```
 
 ---
 
-### 작업 4: 사용자 문서와 연결 회귀 검증
+### Task 4: 사용자 문서와 연결 회귀 검증
 
 **파일:**
 - 수정: `README.md`
@@ -1408,7 +1542,7 @@ git commit -m "feat: connect pass-through raw input hotkeys"
 - [ ] **2단계: 앱·ViewModel·사용자 경로 회귀 확인**
 
 ```powershell
-dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~AppRawInputIntegrationTests|FullyQualifiedName~MainViewModelTests|FullyQualifiedName~MainWindowTests|FullyQualifiedName~TimerViewModelTests"
+dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~RawInputMessageHookTests|FullyQualifiedName~MainViewModelTests|FullyQualifiedName~MainWindowTests|FullyQualifiedName~TimerViewModelTests"
 ```
 
 예상 결과: `lParam` 전달, 비처리 훅, 초기 등록 실패 격리, 설정 저장 복원, 단축키 캡처와 타이머별 라우팅 테스트가 모두 통과한다.
@@ -1422,7 +1556,7 @@ git commit -m "docs: explain pass-through raw input hotkeys"
 
 ---
 
-### 작업 5: 전체 회귀·게시·수동 호환성 검증
+### Task 5: 전체 회귀·게시·수동 호환성 검증
 
 **파일:**
 - 수정: `docs/superpowers/plans/2026-08-11-pass-through-hotkeys.md`
@@ -1442,12 +1576,21 @@ dotnet test TalesAlarm.sln -c Release --no-restore
 - [ ] **2단계: 런타임 금지 API와 변경 범위 검사**
 
 ```powershell
-rg -n "RegisterHotKey|UnregisterHotKey|WM_HOTKEY|SetWindowsHookEx|SendInput|keybd_event|RIDEV_NOLEGACY|RIDEV_NOHOTKEYS" src tests
+$forbidden = rg -n "RegisterHotKey|UnregisterHotKey|WM_HOTKEY|SetWindowsHookEx|SendInput|keybd_event|RIDEV_NOLEGACY|RIDEV_NOHOTKEYS" src tests
+if ($LASTEXITCODE -eq 0) {
+    $forbidden
+    throw "금지된 입력 API 의존성이 남아 있습니다."
+}
+
+if ($LASTEXITCODE -ne 1) {
+    throw "금지 API 검색 자체가 실패했습니다."
+}
+
 git diff --check
 git status --short
 ```
 
-예상 결과: `src/`에는 금지 API 호출·상수가 없고, 테스트에는 금지 API가 없음을 확인하는 문자열 단언만 있다. 공백 오류가 없고 의도한 소스·테스트·README·계획 파일만 변경되어 있다.
+예상 결과: `src/`와 `tests/` 모두 금지 API 호출·상수 문자열이 없어 `rg`가 정상적인 무일치 코드 `1`을 반환한다. 공백 오류가 없고 의도한 소스·테스트·README·계획 파일만 변경되어 있다.
 
 - [ ] **3단계: Windows x64 런타임 복원과 단일 파일 게시**
 
