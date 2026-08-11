@@ -1565,7 +1565,7 @@ git commit -m "docs: explain pass-through raw input hotkeys"
 - 자동 검증은 전체 Release 테스트, 금지 API 검색, win-x64 게시와 실행 검사를 포함한다.
 - 수동 검증은 실제 테일즈위버 창 모드·전체 화면 모드에서 게임 동작과 타이머 동작의 동시 실행을 확인한다.
 
-- [ ] **1단계: 전체 Release 테스트 실행**
+- [x] **1단계: 전체 Release 테스트 실행**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore
@@ -1573,7 +1573,9 @@ dotnet test TalesAlarm.sln -c Release --no-restore
 
 예상 결과: 실패와 건너뜀 없이 기존 설정·타이머·알람·트레이·WPF 테스트와 새 Raw Input 테스트가 모두 통과한다.
 
-- [ ] **2단계: 런타임 금지 API와 변경 범위 검사**
+실행 기록 (2026-08-11): `C:\Users\jsp\orca\Tales-Alarm\.dotnet-cli\dotnet10\dotnet.exe test TalesAlarm.sln -c Release --no-restore`를 `DOTNET_CLI_HOME=C:\Users\jsp\orca\Tales-Alarm\.dotnet-cli\home`, `NUGET_PACKAGES=C:\Users\jsp\orca\Tales-Alarm\.dotnet-cli\packages`로 실행했다. 종료 코드 0, 실패 0, 통과 169, 건너뜀 0, 전체 169 (2초).
+
+- [x] **2단계: 런타임 금지 API와 변경 범위 검사**
 
 ```powershell
 $forbidden = rg -n "RegisterHotKey|UnregisterHotKey|WM_HOTKEY|SetWindowsHookEx|SendInput|keybd_event|RIDEV_NOLEGACY|RIDEV_NOHOTKEYS" src tests
@@ -1592,7 +1594,9 @@ git status --short
 
 예상 결과: `src/`와 `tests/` 모두 금지 API 호출·상수 문자열이 없어 `rg`가 정상적인 무일치 코드 `1`을 반환한다. 공백 오류가 없고 의도한 소스·테스트·README·계획 파일만 변경되어 있다.
 
-- [ ] **3단계: Windows x64 런타임 복원과 단일 파일 게시**
+실행 기록 (2026-08-11): 위의 정확한 `rg` 검색은 출력 없이 종료 코드 1(예상된 무일치)로 끝났다. `git diff --check`는 종료 코드 0이었다. `git status --short`는 변경 항목을 출력하지 않았고, 전역 ignore 파일 `C:\Users\jsp/.config/git/ignore` 접근 권한 경고 두 건만 출력했다.
+
+- [x] **3단계: Windows x64 런타임 복원과 단일 파일 게시**
 
 ```powershell
 dotnet restore src/TalesAlarm/TalesAlarm.csproj --runtime win-x64
@@ -1601,13 +1605,17 @@ dotnet publish src/TalesAlarm/TalesAlarm.csproj -p:PublishProfile=win-x64 --no-r
 
 예상 결과: `artifacts/TalesAlarm-win-x64/TalesAlarm.exe`가 생성된다.
 
-- [ ] **4단계: 게시 산출물 실행 검증**
+실행 기록 (2026-08-11): 로컬 .NET 10 실행 파일과 위 1단계의 동일한 `DOTNET_CLI_HOME`/`NUGET_PACKAGES`를 사용해 `restore src/TalesAlarm/TalesAlarm.csproj --runtime win-x64`(종료 코드 0)와 `publish src/TalesAlarm/TalesAlarm.csproj -p:PublishProfile=win-x64 --no-restore`(종료 코드 0)를 실행했다. 산출물: `C:\Users\jsp\orca\Tales-Alarm\.worktrees\feat-raw-input-pass-through\artifacts\TalesAlarm-win-x64\TalesAlarm.exe` (173212745 bytes).
+
+- [x] **4단계: 게시 산출물 실행 검증**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -PublishDirectory artifacts/TalesAlarm-win-x64
 ```
 
 예상 결과: 외부 런타임 파일이 필요 없는 단일 EXE가 시작되고 검증 시간 동안 정상 실행 상태를 유지한다.
+
+실행 기록 (2026-08-11): `powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -PublishDirectory artifacts/TalesAlarm-win-x64`는 종료 코드 0으로 완료되었고, `게시 산출물 검증 통과: C:\Users\jsp\orca\Tales-Alarm\.worktrees\feat-raw-input-pass-through\artifacts\TalesAlarm-win-x64\TalesAlarm.exe (173212745 bytes)`를 출력했다.
 
 - [ ] **5단계: 일반 프로그램 패스스루 수동 검증**
 
@@ -1621,6 +1629,8 @@ powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -Publi
 6. 한국어·영어 입력 배열을 각각 선택하고 일반 문자 `A`와 OEM 기호 키를 임시 단축키로 저장해, 두 배열에서 저장된 WPF 키 의미와 Raw Input 가상 키가 동일하게 일치하는지 확인한다.
 7. 단축키 입력 상자를 활성화한 동안 타이머가 실행되지 않고 캡처 종료 뒤 다시 동작하는지 확인한다.
 
+실행 기록 (2026-08-11): **NOT RUN / requires user.** 실제 대화형 사용자 세션에서 메모장 또는 브라우저를 활성화하고 일반 사용자 권한으로 게시 EXE를 실행해야 한다. 사용자는 (a) F2와 Ctrl+F5의 설정값, (b) 창 모드/트레이 상태, (c) F2의 대상 앱 통과와 타이머 1회 실행, (d) Ctrl+F5만 타이머 2 실행(F5 및 Ctrl+Shift+F5 비실행), (e) 길게 누름의 한 번만 실행 및 재누름, (f) 두 키보드 레이아웃에서 A 및 OEM 키의 WPF 표시와 Raw Input 로그 일치, (g) 캡처 중 비실행·종료 후 재동작 결과를 보고해야 한다. OS 예약 조합은 지원 대상이 아니다.
+
 - [ ] **6단계: 테일즈위버 호환성 수동 검증**
 
 테일즈위버를 일반 사용자 권한으로 실행하고 다음 결과를 기록한다.
@@ -1631,11 +1641,13 @@ powershell -ExecutionPolicy Bypass -File tests/Verify-PublishArtifact.ps1 -Publi
 4. 테스트 중 게임이 종료되지 않고 BlackCipher 또는 다른 보안 경고가 표시되지 않는다.
 5. 운영체제 예약 조합은 지원 보장 대상이 아님을 결과 기록에 명시한다.
 
-- [ ] **7단계: 계획에 실제 검증 결과 기록**
+실행 기록 (2026-08-11): **NOT RUN / requires user.** 실제 대화형 사용자 세션에서 일반 사용자 권한으로 테일즈위버를 실행하고 창 모드와 전체 화면 모드 각각에서 F2/F5를 시험해야 한다. 사용자는 (a) 각 모드의 게임 동작과 대응 타이머 동시 실행, (b) 길게 누름 시 게임 연속 동작과 타이머 1회 실행, (c) 게임 비종료, (d) BlackCipher 또는 기타 보안 경고 미표시, (e) OS 예약 조합 비보장 확인을 보고해야 한다. 이 작업에서는 입력 합성·후킹·주입, 게임/보안 프로세스 접근을 하지 않았다.
+
+- [x] **7단계: 계획에 실제 검증 결과 기록**
 
 각 체크박스를 실제 완료 상태로 바꾸고 RED/GREEN 결과, 전체 테스트 수, 게시 파일 크기, 실행 검증 결과, 수동 검증 환경과 결과를 해당 단계 아래에 기록한다. 실패한 항목은 성공으로 표시하지 않고 재현 조건과 다음 조치를 남긴다.
 
-- [ ] **8단계: 작업 5 문서 커밋**
+- [x] **8단계: 작업 5 문서 커밋**
 
 ```powershell
 git add docs/superpowers/plans/2026-08-11-pass-through-hotkeys.md
