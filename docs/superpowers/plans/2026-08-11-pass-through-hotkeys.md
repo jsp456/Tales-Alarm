@@ -42,7 +42,7 @@
 - 생성: `Win32RawInputNativeApi`
 - 이 작업에서는 현재 서비스를 빌드 가능한 상태로 유지하기 위해 기존 `IHotkeyNativeApi` 파일을 보존하고, 작업 3에서 서비스와 함께 제거한다.
 
-- [ ] **1단계: 등록 플래그와 실제 창 등록 수명 테스트 작성**
+- [x] **1단계: 등록 플래그와 실제 창 등록 수명 테스트 작성**
 
 `AssemblyInfo.cs`에 테스트 어셈블리에서 내부 네이티브 호출 경계를 사용할 수 있게 다음 특성을 추가한다.
 
@@ -167,7 +167,7 @@ public sealed class RawInputIntegrationCollection
 }
 ```
 
-- [ ] **2단계: 네이티브 경계 집중 테스트를 실행해 RED 확인**
+- [x] **2단계: 네이티브 경계 집중 테스트를 실행해 RED 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~RawInputNativeApiTests"
@@ -175,7 +175,7 @@ dotnet test TalesAlarm.sln -c Release --filter "FullyQualifiedName~RawInputNativ
 
 예상 결과: `IRawInputNativeApi`, `IRawInputNativeMethods`, `RawInputDeviceFlags`, `Win32RawInputNativeApi`가 없어 컴파일이 실패한다.
 
-- [ ] **3단계: Raw Input 공개 이벤트 계약 구현**
+- [x] **3단계: Raw Input 공개 이벤트 계약 구현**
 
 `RawInputNativeApi.cs`의 공개 계약을 다음과 같이 만든다. `RawKeyboardInput`에는 패킷 해석 이후 상태 관리에 필요한 값만 남긴다.
 
@@ -234,7 +234,7 @@ public interface IRawInputNativeApi
 }
 ```
 
-- [ ] **4단계: Win32 등록·해제와 구조체 선언 구현**
+- [x] **4단계: Win32 등록·해제와 구조체 선언 구현**
 
 같은 파일에 등록 플래그, 네이티브 구조체와 P/Invoke를 추가한다. 제거 요청에서는 Microsoft 계약에 맞게 `TargetWindow=0`을 사용한다.
 
@@ -396,7 +396,7 @@ internal static partial class RawInputPInvoke
 }
 ```
 
-- [ ] **5단계: `GetRawInputData`의 두 단계 읽기와 검증 구현**
+- [x] **5단계: `GetRawInputData`의 두 단계 읽기와 검증 구현**
 
 `Win32RawInputNativeApi.ReadKeyboard`는 먼저 크기를 질의하고 정렬된 비관리 버퍼를 할당한 뒤 실제 데이터를 읽는다. API 실패는 `GetLastWin32Error`, 짧거나 모순된 패킷은 `ERROR_INVALID_DATA(13)`, 키보드가 아닌 패킷은 `Ignored`로 반환한다.
 
@@ -485,7 +485,7 @@ public RawInputReadResult ReadKeyboard(nint rawInputHandle)
 }
 ```
 
-- [ ] **6단계: 네이티브 경계 테스트 GREEN 확인**
+- [x] **6단계: 네이티브 경계 테스트 GREEN 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~RawInputNativeApiTests"
@@ -493,7 +493,7 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: 패스스루 플래그 단언과 실제 창 핸들 등록·해제 테스트가 모두 통과한다.
 
-- [ ] **7단계: 작업 1 커밋**
+- [x] **7단계: 작업 1 커밋**
 
 ```powershell
 git add src/TalesAlarm/AssemblyInfo.cs src/TalesAlarm/Hotkeys/RawInputNativeApi.cs tests/TalesAlarm.Tests/Hotkeys/RawInputNativeApiTests.cs
@@ -514,7 +514,7 @@ git commit -m "feat: add raw input native boundary"
 - 생성: `RawKeyboardState.Clear()`
 - 소비: 기존 `HotkeyGesture`, `HotkeyModifiers`, WPF `KeyInterop`
 
-- [ ] **1단계: 최초 키다운·자동 반복·재무장 실패 테스트 작성**
+- [x] **1단계: 최초 키다운·자동 반복·재무장 실패 테스트 작성**
 
 ```csharp
 using System.Windows.Input;
@@ -549,7 +549,7 @@ public sealed class RawKeyboardStateTests
 }
 ```
 
-- [ ] **2단계: 수정키 통합·다중 장치·정확한 집합 실패 테스트 작성**
+- [x] **2단계: 수정키 통합·다중 장치·정확한 집합 실패 테스트 작성**
 
 같은 테스트 클래스에 좌우 수정키 통합과 장치 간 합산을 추가한다.
 
@@ -595,7 +595,7 @@ public void TryCreateGesture_AggregatesModifiersAcrossDevices()
 }
 ```
 
-- [ ] **3단계: 장치 제거·전체 초기화·키 매핑 실패 테스트 작성**
+- [x] **3단계: 장치 제거·전체 초기화·키 매핑 실패 테스트 작성**
 
 ```csharp
 [Fact]
@@ -654,7 +654,7 @@ public void TryCreateGesture_UnknownOrOverrunInputIsIgnored(
 }
 ```
 
-- [ ] **4단계: 상태 집중 테스트를 실행해 RED 확인**
+- [x] **4단계: 상태 집중 테스트를 실행해 RED 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~RawKeyboardStateTests"
@@ -662,7 +662,7 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: `RawKeyboardState`가 없어 컴파일이 실패한다.
 
-- [ ] **5단계: 장치별 물리 키 식별과 정규화 구현**
+- [x] **5단계: 장치별 물리 키 식별과 정규화 구현**
 
 `RawKeyboardState.cs`를 다음 책임으로 구현한다. 물리 키 식별자에는 `Break`를 제외한 확장 플래그를 포함해 좌우 키와 자동 반복을 안정적으로 구분한다.
 
@@ -783,7 +783,7 @@ internal sealed class RawKeyboardState
 }
 ```
 
-- [ ] **6단계: 상태 테스트 GREEN 확인**
+- [x] **6단계: 상태 테스트 GREEN 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~RawKeyboardStateTests"
@@ -791,7 +791,7 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: 반복, 재무장, 좌우 수정키 통합, 다중 장치 합산, 장치 제거, 초기화, 문자·OEM 키 매핑 테스트가 모두 통과한다.
 
-- [ ] **7단계: 작업 2 커밋**
+- [x] **7단계: 작업 2 커밋**
 
 ```powershell
 git add src/TalesAlarm/Hotkeys/RawKeyboardState.cs tests/TalesAlarm.Tests/Hotkeys/RawKeyboardStateTests.cs
@@ -821,7 +821,7 @@ git commit -m "feat: track raw keyboard gesture state"
 - 제거: `IHotkeyNativeApi`, `Win32HotkeyNativeApi`, `RegisterHotKey`, `UnregisterHotKey`, `WM_HOTKEY`
 - `RawInputMessageHook`은 WPF 메시지의 `message`, `wParam`, `lParam`을 서비스에 전달하되 `handled`를 변경하지 않으며, `App`은 이 훅을 연결한다.
 
-- [ ] **1단계: 가짜 Raw Input API 작성**
+- [x] **1단계: 가짜 Raw Input API 작성**
 
 `FakeRawInputNativeApi.cs`는 등록·해제 횟수와 다음 읽기 결과만 노출하며 실제 입력 내용은 저장하지 않는다.
 
@@ -868,7 +868,7 @@ internal sealed class FakeRawInputNativeApi : IRawInputNativeApi
 }
 ```
 
-- [ ] **2단계: 등록 수명·실패 격리 테스트 작성**
+- [x] **2단계: 등록 수명·실패 격리 테스트 작성**
 
 기존 `RegisterHotKey`별 등록·롤백 테스트를 제거하고 장치 클래스 한 번 등록 계약으로 교체한다.
 
@@ -911,7 +911,7 @@ public void Apply_WhenRawInputRegistrationFailed_DisablesOnlyHotkeysAndReportsCo
 }
 ```
 
-- [ ] **3단계: 라우팅·반복·정확한 수정키 테스트 작성**
+- [x] **3단계: 라우팅·반복·정확한 수정키 테스트 작성**
 
 테스트 헬퍼 `Send`는 가짜 API의 다음 결과를 설정하고 `lParam` 전달 여부까지 검증한다.
 
@@ -985,7 +985,7 @@ private static HotkeyBinding[] Bindings(
         new HotkeyGesture(value.Key, value.Modifiers))).ToArray();
 ```
 
-- [ ] **4단계: 캡처·설정 적용·장치 제거 상태 경계 테스트 작성**
+- [x] **4단계: 캡처·설정 적용·장치 제거 상태 경계 테스트 작성**
 
 ```csharp
 [Fact]
@@ -1047,7 +1047,7 @@ public void DeviceRemoval_ClearsOnlyRemovedDeviceState()
 }
 ```
 
-- [ ] **5단계: 잘못된 패킷·알 수 없는 메시지의 진단·무시 테스트 작성**
+- [x] **5단계: 잘못된 패킷·알 수 없는 메시지의 진단·무시 테스트 작성**
 
 ```csharp
 [Fact]
@@ -1199,7 +1199,7 @@ public async Task InitializeAsync_WhenRawInputRegistrationFailed_ShowsHotkeyErro
 }
 ```
 
-- [ ] **6단계: 서비스 집중 테스트를 실행해 RED 확인**
+- [x] **6단계: 서비스 집중 테스트를 실행해 RED 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~GlobalHotkeyServiceTests|FullyQualifiedName~RawInputMessageHookTests|FullyQualifiedName~MainViewModelTests"
@@ -1207,7 +1207,7 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: 생성자 의존성, 메시지 시그니처, Raw Input 상수와 앱 훅이 현재 `RegisterHotKey` 구현과 달라 컴파일 또는 새 단언이 실패한다.
 
-- [ ] **7단계: 서비스 계약과 등록 가능 상태 구현**
+- [x] **7단계: 서비스 계약과 등록 가능 상태 구현**
 
 `IGlobalHotkeyService`의 메시지 계약을 바꾸고 서비스 필드를 Raw Input 기준으로 교체한다.
 
@@ -1291,7 +1291,7 @@ public void Attach(nint windowHandle)
 }
 ```
 
-- [ ] **8단계: 검증된 바인딩 스냅샷 적용 구현**
+- [x] **8단계: 검증된 바인딩 스냅샷 적용 구현**
 
 `Apply`는 기존 검증을 유지하되 키별 네이티브 등록·롤백을 모두 제거한다. 등록 실패 상태에서는 후보를 활성화하지 않는다.
 
@@ -1340,7 +1340,7 @@ public HotkeyApplyResult Apply(IReadOnlyList<HotkeyBinding> bindings)
 }
 ```
 
-- [ ] **9단계: 메시지 처리와 캡처 임대 구현**
+- [x] **9단계: 메시지 처리와 캡처 임대 구현**
 
 `ProcessWindowMessage`는 `WM_INPUT`의 `lParam`을 읽고, 최초 키다운에서만 정확한 제스처를 라우팅한다. 장치 제거는 해당 상태만 지우며 도착·알 수 없는 변경은 무시한다.
 
@@ -1422,7 +1422,7 @@ private sealed class CaptureLease(GlobalHotkeyService owner) : IDisposable
 }
 ```
 
-- [ ] **10단계: 종료 정리와 진단 구현**
+- [x] **10단계: 종료 정리와 진단 구현**
 
 `Dispose`는 입력 상태와 이벤트를 먼저 무효화하고 등록된 장치 클래스만 한 번 해제한다. 해제 실패는 사용자 동작을 막지 않고 오류 코드만 기록한다.
 
@@ -1452,7 +1452,7 @@ public void Dispose()
 }
 ```
 
-- [ ] **11단계: 앱 훅·ViewModel 가짜 계약 연결 후 기존 경계 삭제**
+- [x] **11단계: 앱 훅·ViewModel 가짜 계약 연결 후 기존 경계 삭제**
 
 `App.ComposeAndShowApplication`에서 Raw Input 구현과 진단 콜백을 구성한다.
 
@@ -1496,7 +1496,7 @@ windowSource.AddHook(windowHook);
 
 마지막으로 `src/TalesAlarm/Hotkeys/HotkeyNativeApi.cs`와 `tests/TalesAlarm.Tests/Helpers/FakeHotkeyNativeApi.cs`를 삭제한다. 이 단계가 끝난 뒤 프로덕션 소스에는 `IHotkeyNativeApi`, `Win32HotkeyNativeApi`, `RegisterHotKey`, `UnregisterHotKey`, `ModNoRepeat`, `WmHotkey`가 남지 않아야 한다.
 
-- [ ] **12단계: 서비스·상태 테스트 GREEN 확인**
+- [x] **12단계: 서비스·상태 테스트 GREEN 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~GlobalHotkeyServiceTests|FullyQualifiedName~RawKeyboardStateTests|FullyQualifiedName~RawInputMessageHookTests|FullyQualifiedName~MainViewModelTests|FullyQualifiedName~MainWindowTests|FullyQualifiedName~TimerViewModelTests"
@@ -1504,7 +1504,7 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: 장치 등록 수명, 등록 실패 격리, 바인딩 검증, 정확한 수정키, 자동 반복, 캡처 중 억제, 설정 적용·장치 제거 초기화, `lParam` 전달, 비처리 WPF 훅, 오류 표시와 기존 타이머 라우팅 테스트가 모두 통과한다.
 
-- [ ] **13단계: 작업 3 커밋**
+- [x] **13단계: 작업 3 커밋**
 
 ```powershell
 git add src/TalesAlarm/App.xaml.cs src/TalesAlarm/Hotkeys/GlobalHotkeyService.cs src/TalesAlarm/Hotkeys/HotkeyNativeApi.cs src/TalesAlarm/Hotkeys/RawInputMessageHook.cs tests/TalesAlarm.Tests/Helpers/FakeHotkeyNativeApi.cs tests/TalesAlarm.Tests/Helpers/FakeRawInputNativeApi.cs tests/TalesAlarm.Tests/Hotkeys/GlobalHotkeyServiceTests.cs tests/TalesAlarm.Tests/Hotkeys/RawInputMessageHookTests.cs tests/TalesAlarm.Tests/ViewModels/MainViewModelTests.cs
@@ -1522,7 +1522,7 @@ git commit -m "feat: connect pass-through raw input hotkeys"
 - 사용자 문서는 단축키의 전체 패스스루 의미, 자동 반복 억제, 트레이·캡처 동작, 운영체제 예약 조합과 보안 경계를 설명한다.
 - 작업 3에서 연결한 WPF 훅, 초기 등록 실패 격리, 설정 복원과 타이머 라우팅을 집중 테스트로 다시 확인한다.
 
-- [ ] **1단계: README의 패스스루 의미와 제한 갱신**
+- [x] **1단계: README의 패스스루 의미와 제한 갱신**
 
 `README.md`의 단축키 설명을 다음 내용으로 교체한다.
 
@@ -1537,9 +1537,13 @@ git commit -m "feat: connect pass-through raw input hotkeys"
 - Tales Alarm은 키 입력을 차단·주입하지 않으며 테일즈위버나 게임 보안 프로세스에 접근하지 않습니다.
 ```
 
-기존 설치, 설정, 알람, 간단 보기 설명은 유지한다.
+기존 설치, 설정, 알람, 간단 보기 설명은 유지한다. `창과 트레이` 절에서는 단일 인스턴스 문장을 유지하고, 다음 문장으로 교체한다.
 
-- [ ] **2단계: 앱·ViewModel·사용자 경로 회귀 확인**
+```markdown
+다른 프로그램이 같은 단축키 조합을 사용해도 두 프로그램이 모두 이를 처리할 수 있습니다. 다른 프로그램과의 중복은 거부 사유가 아니며, Tales Alarm 내부의 중복 할당 또는 잘못되었거나 지원되지 않는 조합만 거부합니다. 이 경우 이전 설정을 유지하고 오류를 화면에 표시합니다.
+```
+
+- [x] **2단계: 앱·ViewModel·사용자 경로 회귀 확인**
 
 ```powershell
 dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~RawInputMessageHookTests|FullyQualifiedName~MainViewModelTests|FullyQualifiedName~MainWindowTests|FullyQualifiedName~TimerViewModelTests"
@@ -1547,7 +1551,7 @@ dotnet test TalesAlarm.sln -c Release --no-restore --filter "FullyQualifiedName~
 
 예상 결과: `lParam` 전달, 비처리 훅, 초기 등록 실패 격리, 설정 저장 복원, 단축키 캡처와 타이머별 라우팅 테스트가 모두 통과한다.
 
-- [ ] **3단계: 작업 4 커밋**
+- [x] **3단계: 작업 4 커밋**
 
 ```powershell
 git add README.md
