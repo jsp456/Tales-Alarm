@@ -1658,6 +1658,8 @@ git add docs/superpowers/plans/2026-08-11-pass-through-hotkeys.md
 git commit -m "docs: record raw input verification"
 ```
 
-- [ ] **9단계: 완료 전 검토와 최종 검증**
+- [x] **9단계: 완료 전 검토와 최종 검증**
 
 `superpowers:requesting-code-review`로 설계 대비 구현과 테스트 누락을 검토하고 지적 사항을 반영한다. 이어서 `superpowers:verification-before-completion`으로 전체 Release 테스트, 금지 API 검사, 게시와 실행 검증을 새로 실행한 뒤 `superpowers:finishing-a-development-branch`로 통합 방법을 사용자에게 제시한다.
+
+실행 기록 (2026-08-11): 전체 브랜치 선임 검토에서 README의 오래된 교차 프로그램 충돌 설명 1건(Important)을 발견했고 `fced60e`에서 수정했다. 범위가 제한된 재검토는 새 문제 없이 승인되었다. 최종 코드 상태에서 새 Release 테스트는 통과 169, 실패 0, 건너뜀 0이었다. 금지 API 검색은 일치 항목 없이 예상 종료 코드 1이었고 `git diff --check`는 깨끗했다. 새 win-x64 게시도 성공했다. 첫 게시 산출물 실행 시도는 기존 TalesAlarm 단일 인스턴스가 실행 중인 환경 문제로 차단되었으나, 사용자가 해당 인스턴스를 종료한 뒤 정확한 `tests/Verify-PublishArtifact.ps1` 재실행이 `artifacts/TalesAlarm-win-x64/TalesAlarm.exe` (173212745 bytes)에 대해 통과했다. 한국어/영어 A+OEM 비교와 테일즈위버 창/전체 화면·BlackCipher/보안 경고 검사는 사용자 승인에 따라 계속 보류되어 광범위한 릴리스를 막지만 브랜치 통합은 막지 않는다. `superpowers:finishing-a-development-branch` 통합 선택지는 사용자에게 제시 중이며, 병합·푸시는 수행하지 않았다.
