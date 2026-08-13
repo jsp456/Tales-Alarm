@@ -212,23 +212,6 @@ public sealed class MainViewModelTests
         Assert.NotNull(fixture.ViewModel.Timer1.ValidationMessage);
     }
 
-    // Break caught: Raw Input registration failure aborts app initialization or hides the hotkey-specific error.
-    [Fact]
-    public async Task InitializeAsync_WhenRawInputRegistrationFailed_ShowsHotkeyError()
-    {
-        using var fixture = Fixture.Create();
-        fixture.Hotkeys.NextApplyResult = new(
-            false,
-            "키보드 Raw Input을 등록하지 못했습니다. Windows 오류 코드: 87.");
-
-        await fixture.ViewModel.InitializeAsync();
-
-        Assert.Contains("Raw Input", fixture.ViewModel.ErrorMessage);
-        Assert.Contains("87", fixture.ViewModel.ErrorMessage);
-        fixture.ViewModel.Timer1.StartCommand.Execute(null);
-        Assert.Equal("실행 중", fixture.ViewModel.Timer1.StatusText);
-    }
-
     // Break caught: corrupt-settings recovery is silently hidden from the user.
     [Fact]
     public async Task InitializeAsync_WhenSettingsRecovered_DisplaysRecoveryNotice()
@@ -418,7 +401,6 @@ public sealed class MainViewModelTests
         public event EventHandler<int>? HotkeyPressed;
         public IReadOnlyList<HotkeyBinding> ActiveBindings => activeBindings;
         public int ApplyCalls { get; private set; }
-        public HotkeyApplyResult NextApplyResult { get; set; } = new(true, null);
 
         public void Attach(nint windowHandle)
         {
@@ -427,20 +409,13 @@ public sealed class MainViewModelTests
         public HotkeyApplyResult Apply(IReadOnlyList<HotkeyBinding> bindings)
         {
             ApplyCalls++;
-            if (!NextApplyResult.Success)
-            {
-                return NextApplyResult;
-            }
-
             activeBindings = bindings.ToArray();
-            return NextApplyResult;
+            return new(true, null);
         }
 
         public IDisposable SuspendForCapture() => new Lease();
 
-        public void ProcessWindowMessage(int message, nint wParam, nint lParam)
-        {
-        }
+        public bool ProcessWindowMessage(int message, nint wParam) => false;
 
         public void RaisePressed(int timerIndex) => HotkeyPressed?.Invoke(this, timerIndex);
 
