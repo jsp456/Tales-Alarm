@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>RawInputProbe</AssemblyName>
+    <RootNamespace>TalesAlarm.Tools.RawInputProbe</RootNamespace>
+    <AssemblyTitle>Tales Alarm Raw Input Probe</AssemblyTitle>
+    <Product>Tales Alarm Raw Input Probe</Product>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+</Project>

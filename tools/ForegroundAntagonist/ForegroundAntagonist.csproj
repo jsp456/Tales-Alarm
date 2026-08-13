@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>ForegroundAntagonist</AssemblyName>
+    <RootNamespace>TalesAlarm.Tools.ForegroundAntagonist</RootNamespace>
+    <AssemblyTitle>Tales Alarm Foreground Antagonist</AssemblyTitle>
+    <Product>Tales Alarm Foreground Antagonist</Product>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+</Project>
